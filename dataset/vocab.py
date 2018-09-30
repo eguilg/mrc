@@ -38,5 +38,5 @@ class Vocab(object):
 
 	def idxs_to_words(self, idxs):
 		return [self.index2word[idx] if
-				(isinstance(idx, int) and 0 <= id < len(self.index2word))
+				(isinstance(idx, int) and 0 <= idx < len(self.index2word))
 				else '' for idx in idxs]

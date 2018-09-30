@@ -9,6 +9,7 @@ trainset_roots = [
 	'./data/train/gen/question/samples_jieba500',
 	'./data/train/gen/question/samples_pyltp500',
 ]
+SEED = 502
 
 jieba_base_v = Vocab('./data/embed/base_token_vocab_jieba.pkl',
 					 './data/embed/base_token_embed_jieba.pkl')
@@ -24,19 +25,22 @@ pyltp_sgns_v = Vocab('./data/embed/train_sgns_vocab_pyltp.pkl',
 pyltp_flag_v = Vocab('./data/embed/base_flag_vocab_pyltp.pkl',
 					 './data/embed/base_flag_embed_pyltp.pkl')
 
+
 transform = MaiIndexTransform(jieba_base_v, jieba_sgns_v, jieba_flag_v, pyltp_base_v, pyltp_sgns_v, pyltp_flag_v)
 train_data_source = MaiDataSource(trainset_roots)
-train_data_source.split()
+train_data_source.split(dev_split=0.1, seed=SEED)
 dev_data_set = MaiDataset(train_data_source.dev, transform)
 
 train_loader = DataLoader(
 	dataset=MaiDataset(train_data_source.train, transform),
-	batch_sampler=MethodBasedBatchSampler(train_data_source.train, batch_size=32),
-	num_workers=mp.cpu_count()
+	batch_sampler=MethodBasedBatchSampler(train_data_source.train, batch_size=32, seed=SEED),
+	num_workers=mp.cpu_count(),
+	collate_fn=transform.batchify
 )
 
 dev_loader = DataLoader(
 	dataset=MaiDataset(train_data_source.dev, transform),
 	batch_sampler=MethodBasedBatchSampler(train_data_source.dev, batch_size=32, shuffle=False),
-	num_workers=mp.cpu_count()
+	num_workers=mp.cpu_count(),
+	collate_fn=transform.batchify
 )

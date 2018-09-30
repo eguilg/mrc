@@ -1,9 +1,10 @@
 from collections import defaultdict
 
 import numpy as np
+from torch.utils.data.sampler import Sampler
 
 
-class MethodBasedBatchSampler(object):
+class MethodBasedBatchSampler(Sampler):
 	def __init__(self, data_source, batch_size, shuffle=True, seed=502):
 		self.data_source = data_source
 		self.batch_size = batch_size
@@ -32,3 +33,4 @@ class MethodBasedBatchSampler(object):
 	def __len__(self):
 		lens = [(ll + self.batch_size - 1) // self.batch_size for ll in self.method_dict.values()]
 		return sum(lens)
+
