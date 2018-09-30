@@ -2,7 +2,8 @@ import multiprocessing as mp
 
 from torch.utils.data import DataLoader
 
-from dataset import MaiDataSource, MaiDataset, Vocab, MaiIndexTransform, MethodBasedBatchSampler
+from dataset import (MaiDataSource, MaiDataset, Vocab,
+					 MaiIndexTransform, MethodBasedBatchSampler)
 
 trainset_roots = [
 	'./data/train/gen/question/samples_jieba500',
