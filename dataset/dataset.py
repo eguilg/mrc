@@ -1,3 +1,5 @@
+""" data source and data set classes """
+
 import os
 
 from torch.utils.data import Dataset
@@ -5,7 +7,7 @@ from torch.utils.data import Dataset
 from utils.serialization import *
 
 
-class MaiDataSource(object):
+class MaiDirDataSource(object):
 
 	def __init__(self, root_dirs):
 		self.data = []  # (aid, qid, method, fpath)
@@ -59,7 +61,7 @@ class MaiDataSource(object):
 		self.train = list(filter(lambda item: item[0] not in self.dev_aid, self.data))
 
 
-class MaiDataset(Dataset):
+class MaiDirDataset(Dataset):
 	def __init__(self, data_source, transform):
 		self.data_source = data_source
 		self.transform = transform
@@ -76,3 +78,5 @@ class MaiDataset(Dataset):
 		aid, qid, method, fpath = self.data_source[index]
 		item = read_json(fpath)
 		return self.transform(item, method)
+
+# TODO: MaiFileDataset for seed in test

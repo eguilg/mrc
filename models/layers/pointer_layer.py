@@ -7,6 +7,7 @@ from .common_layer import FeedForwardNetwork, SFU
 
 
 class PointerNetwork(nn.Module):
+
 	def __init__(self, x_size, y_size, hidden_size, dropout_rate=0, cell_type=nn.GRUCell, normalize=True):
 		super(PointerNetwork, self).__init__()
 		self.normalize = normalize
@@ -30,12 +31,8 @@ class PointerNetwork(nn.Module):
 		a = F.softmax(s)
 		res = a.unsqueeze(1).bmm(x).squeeze(1)
 		if self.normalize:
-			if self.training:
-				# In training we output log-softmax for NLL
-				scores = F.log_softmax(s)
-			else:
-				# ...Otherwise 0-1 probabilities
-				scores = F.softmax(s)
+			# 0-1 probabilities
+			scores = F.softmax(s)
 		else:
 			scores = a.exp()
 		return res, scores
@@ -88,14 +85,9 @@ class MemoryAnsPointer(nn.Module):
 			u_e = p_e.unsqueeze(1).bmm(x)  # [B, 1, I]
 			z_s = self.SFUs_end[i](z_e, u_e)
 		if self.normalize:
-			if self.training:
-				# In training we output log-softmax for NLL
-				p_s = F.log_softmax(s, dim=1)  # [B, S]
-				p_e = F.log_softmax(e, dim=1)  # [B, S]
-			else:
-				# ...Otherwise 0-1 probabilities
-				p_s = F.softmax(s, dim=1)  # [B, S]
-				p_e = F.softmax(e, dim=1)  # [B, S]
+			#  0-1 probabilities
+			p_s = F.softmax(s, dim=1)  # [B, S]
+			p_e = F.softmax(e, dim=1)  # [B, S]
 		else:
 			p_s = s.exp()
 			p_e = e.exp()

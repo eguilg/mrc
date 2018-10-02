@@ -1,3 +1,5 @@
+""" samplers """
+
 from collections import defaultdict
 
 import numpy as np
@@ -33,4 +35,3 @@ class MethodBasedBatchSampler(Sampler):
 	def __len__(self):
 		lens = [(ll + self.batch_size - 1) // self.batch_size for ll in self.method_dict.values()]
 		return sum(lens)
-

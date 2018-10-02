@@ -1,8 +1,10 @@
+""" conduct transformation from raw data to padded batches of inputs """
+
 import torch
 
 
 def pad(seqs, max_len, pad_val):
-	""" padding """
+	""" pad a batch to its max len """
 	tmp = []
 	for d in seqs:
 		if len(d) > max_len:
@@ -40,6 +42,7 @@ class MaiIndexTransform(object):
 			'c_flag_idx': self.flag_vocab[method].words_to_idxs(item['article_flags']),
 			'c_in_q': [1.0 if w in item['question_tokens'] else 0.0 for w in item['article_tokens']],
 
+			'c_mask': [0] * len(item['article_tokens']),
 			'c_len': len(item['article_tokens']),
 
 			'q_base_idx': self.base_vocab[method].words_to_idxs(item['question_tokens']),
@@ -47,6 +50,7 @@ class MaiIndexTransform(object):
 			'q_flag_idx': self.flag_vocab[method].words_to_idxs(item['question_flags']),
 			'q_in_c': [1.0 if w in item['article_tokens'] else 0.0 for w in item['question_tokens']],
 
+			'q_mask': [0] * len(item['question_tokens']),
 			'q_len': len(item['question_tokens']),
 
 		}
@@ -69,18 +73,26 @@ class MaiIndexTransform(object):
 		batch = {
 			'raw': [sample['raw'] for sample in res_batch],
 			'method': m,
-			'c_base_idx': torch.LongTensor(pad([sample['c_base_idx'] for sample in res_batch], c_max_len, self.base_vocab[m].pad_idx)),
-			'c_sgns_idx': torch.LongTensor(pad([sample['c_sgns_idx'] for sample in res_batch], c_max_len, self.sgns_vocab[m].pad_idx)),
-			'c_flag_idx': torch.LongTensor(pad([sample['c_flag_idx'] for sample in res_batch], c_max_len, self.flag_vocab[m].pad_idx)),
-			'c_in_q': torch.DoubleTensor(pad([sample['c_in_q'] for sample in res_batch], c_max_len, 0.0)),
+			'c_base_idx': torch.LongTensor(
+				pad([sample['c_base_idx'] for sample in res_batch], c_max_len, self.base_vocab[m].pad_idx)),
+			'c_sgns_idx': torch.LongTensor(
+				pad([sample['c_sgns_idx'] for sample in res_batch], c_max_len, self.sgns_vocab[m].pad_idx)),
+			'c_flag_idx': torch.LongTensor(
+				pad([sample['c_flag_idx'] for sample in res_batch], c_max_len, self.flag_vocab[m].pad_idx)),
+			'c_in_q': torch.FloatTensor(pad([sample['c_in_q'] for sample in res_batch], c_max_len, 0.0)),
 
+			'c_mask': torch.ByteTensor(pad([sample['c_mask'] for sample in res_batch], c_max_len, 1)),
 			'c_lens': torch.LongTensor(c_lens),
 
-			'q_base_idx': torch.LongTensor(pad([sample['q_base_idx'] for sample in res_batch], q_max_len, self.base_vocab[m].pad_idx)),
-			'q_sgns_idx': torch.LongTensor(pad([sample['q_sgns_idx'] for sample in res_batch], q_max_len, self.sgns_vocab[m].pad_idx)),
-			'q_flag_idx': torch.LongTensor(pad([sample['q_flag_idx'] for sample in res_batch], q_max_len, self.flag_vocab[m].pad_idx)),
-			'q_in_c': torch.DoubleTensor(pad([sample['q_in_c'] for sample in res_batch], q_max_len, 0.0)),
+			'q_base_idx': torch.LongTensor(
+				pad([sample['q_base_idx'] for sample in res_batch], q_max_len, self.base_vocab[m].pad_idx)),
+			'q_sgns_idx': torch.LongTensor(
+				pad([sample['q_sgns_idx'] for sample in res_batch], q_max_len, self.sgns_vocab[m].pad_idx)),
+			'q_flag_idx': torch.LongTensor(
+				pad([sample['q_flag_idx'] for sample in res_batch], q_max_len, self.flag_vocab[m].pad_idx)),
+			'q_in_c': torch.FloatTensor(pad([sample['q_in_c'] for sample in res_batch], q_max_len, 0.0)),
 
+			'q_mask': torch.ByteTensor(pad([sample['q_mask'] for sample in res_batch], q_max_len, 1)),
 			'q_lens': torch.LongTensor(q_lens)
 		}
 		if 'start' in res_batch[0]:

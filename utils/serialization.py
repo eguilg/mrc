@@ -12,11 +12,10 @@ from .osutils import mkdir_if_missing
 
 
 def read_elmo_vocab(vocab_path, embedding_path):
-	word_to_id = {}
-	word_to_id['<pad>'] = 0
+	word_to_id = {'<pad>': 0}
 	with open(vocab_path, encoding='utf-8') as f:
 		lines = f.readlines()
-		for line in lines[2:]:  ## 这里的[2:]是去掉开头的<S>和</S>
+		for line in lines[2:]:  # 这里的[2:]是去掉开头的<S>和</S>
 			word_to_id[line.strip()] = len(word_to_id)
 
 	embeddings = read_pkl(embedding_path)
@@ -42,7 +41,6 @@ def bz2_vocab_reader(fpath):
 			except Exception:
 				continue
 			yield word, embed
-
 
 
 def read_json(fpath):
