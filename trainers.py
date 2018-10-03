@@ -2,7 +2,7 @@ from __future__ import print_function, absolute_import
 
 import time
 
-from losses import PointerLoss
+from models.losses import PointerLoss
 from utils.meters import AverageMeter
 
 

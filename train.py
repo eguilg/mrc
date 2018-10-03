@@ -6,8 +6,8 @@ from torch.utils.data import DataLoader
 
 from dataset import (MaiDirDataSource, MaiDirDataset, Vocab,
 					 MaiIndexTransform, MethodBasedBatchSampler)
-from losses import PointerLoss
 from models import R_Net
+from models.losses import PointerLoss
 from trainers import Trainer
 
 RNN_TYPES = {'lstm': nn.LSTM, 'gru': nn.GRU, 'rnn': nn.RNN}
