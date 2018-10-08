@@ -54,6 +54,8 @@ class MaiIndexTransform(object):
 			'q_len': len(item['question_tokens']),
 
 		}
+		if res['q_len'] == 0:
+			res['q_mask'] = [0]
 		if 'answer_token_start' in item:
 			res.update({
 				'start': item['answer_token_start'],
@@ -105,3 +107,53 @@ class MaiIndexTransform(object):
 			})
 
 		return batch
+
+	@staticmethod
+	def prepare_inputs(batch, cuda=True):
+		x1_keys = [
+			'c_base_idx',
+			'c_sgns_idx',
+			'c_flag_idx'
+		]
+		x1_f_keys = [
+			'c_in_q'
+		]
+
+		x2_keys = [
+			'q_base_idx',
+			'q_sgns_idx',
+			'q_flag_idx'
+		]
+		x2_f_keys = [
+			'q_in_c'
+		]
+
+		if cuda:
+			x1_list = [batch[key].cuda() for key in x1_keys]
+			x1_f_list = [batch[key].cuda() for key in x1_f_keys]
+			x1_mask = batch['c_mask'].cuda()
+			x2_list = [batch[key].cuda() for key in x2_keys]
+			x2_f_list = [batch[key].cuda() for key in x2_f_keys]
+			x2_mask = batch['q_mask'].cuda()
+		else:
+			x1_list = [batch[key] for key in x1_keys]
+			x1_f_list = [batch[key] for key in x1_f_keys]
+			x1_mask = batch['c_mask']
+			x2_list = [batch[key] for key in x2_keys]
+			x2_f_list = [batch[key] for key in x2_f_keys]
+			x2_mask = batch['q_mask']
+
+		method = batch['method']
+
+		inputs = [x1_list, x1_f_list, x1_mask, x2_list, x2_f_list, x2_mask, method]
+		if 'start' in batch:
+			if cuda:
+				y_start = batch['start'].cuda()
+				y_end = batch['end'].cuda()
+			else:
+				y_start = batch['start']
+				y_end = batch['end']
+			targets = [y_start, y_end]
+			return inputs, targets
+		else:
+			return inputs, None

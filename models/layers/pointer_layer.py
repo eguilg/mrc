@@ -28,11 +28,11 @@ class PointerNetwork(nn.Module):
 		s0 = F.tanh(self.linear(x_))
 		s = self.weights(s0).view(x.size(0), x.size(1))
 		s.data.masked_fill_(x_mask.data, -float('inf'))
-		a = F.softmax(s)
+		a = F.softmax(s, -1)
 		res = a.unsqueeze(1).bmm(x).squeeze(1)
 		if self.normalize:
 			# 0-1 probabilities
-			scores = F.softmax(s)
+			scores = F.softmax(s, -1)
 		else:
 			scores = a.exp()
 		return res, scores
@@ -47,7 +47,7 @@ class PointerNetwork(nn.Module):
 
 
 class MemoryAnsPointer(nn.Module):
-	def __init__(self, x_size, y_size, hidden_size, hop=1, dropout_rate=0, normalize=True):
+	def __init__(self, x_size, y_size, hidden_size, hop=3, dropout_rate=0, normalize=True):
 		super(MemoryAnsPointer, self).__init__()
 		self.normalize = normalize
 		self.hidden_size = hidden_size

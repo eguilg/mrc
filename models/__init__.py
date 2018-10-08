@@ -1,2 +1,9 @@
-from .m_reader import MnemonicReader
-from .r_net import R_Net
+import torch.nn as nn
+
+from .backbones import R_Net, MnemonicReader
+from .layers.pointer_layer import PointerNetwork, MemoryAnsPointer
+
+RNN_TYPES = {'lstm': nn.LSTM, 'gru': nn.GRU, 'rnn': nn.RNN}
+CELL_TYPES = {'lstm': nn.LSTMCell, 'gru': nn.GRUCell, 'rnn': nn.RNNCell}
+BACKBONE_TYPES = {'r_net': R_Net, 'm_reader': MnemonicReader}
+POINTER_TYPES = {'ptr': PointerNetwork, 'm_ptr': MemoryAnsPointer}
