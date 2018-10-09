@@ -20,7 +20,7 @@ class MethodBasedBatchSampler(Sampler):
 		method_batch_dict = defaultdict(list)
 		shuffled_indices = list(range(len(self.data_source)))
 		if self.shuffle:
-			np.random.seed(self.seed)
+			# np.random.seed(self.seed)
 			np.random.shuffle(shuffled_indices)
 		for idx in shuffled_indices:
 			_, _, method, _ = self.data_source[idx]

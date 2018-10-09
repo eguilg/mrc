@@ -2,6 +2,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from . import BACKBONE_TYPES, RNN_TYPES, POINTER_TYPES
 from .layers.embedding_layer import MergedEmbedding
@@ -14,6 +15,7 @@ class RCModel(nn.Module):
 		# Store config
 		self.param_dict = param_dict
 		self.num_features = param_dict['num_features']
+		self.num_qtype = param_dict['num_qtype']
 		self.hidden_size = param_dict['hidden_size']
 		self.dropout = param_dict['dropout']
 		self.backbone_kwarg = param_dict['backbone_kwarg']
@@ -56,6 +58,18 @@ class RCModel(nn.Module):
 			dropout_rate=self.dropout,
 			normalize=normalize,
 			**self.ptr_kwarg
+		)
+
+		self.qtype_net = nn.Linear(
+			in_features=2 * self.hidden_size,
+			out_features=self.num_qtype,
+			bias=True
+		)
+
+		self.isin_net = nn.Linear(
+			in_features=2 * self.hidden_size,
+			out_features=1,
+			bias=True
 		)
 
 	def reset_embeddings(self, embed_lists):
@@ -101,7 +115,13 @@ class RCModel(nn.Module):
 
 		score_s, score_e = self.ptr_net(c, q, x1_mask, x2_mask)
 
-		return score_s, score_e
+		if self.training:
+			qtype_vec = F.sigmoid(self.qtype_net(q[:, -1, :]))
+			c_in_a = F.sigmoid(self.isin_net(c).squeeze(-1))
+			q_in_a = F.sigmoid(self.isin_net(q).squeeze(-1))
+			return score_s, score_e, (qtype_vec, c_in_a, q_in_a)
+		else:
+			return score_s, score_e, None
 
 	@staticmethod
 	def decode(score_s, score_e, top_n=1, max_len=None):

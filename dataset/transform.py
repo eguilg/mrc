@@ -2,6 +2,8 @@
 
 import torch
 
+from .feature_handler.question_handler import QuestionTypeHandler
+
 
 def pad(seqs, max_len, pad_val):
 	""" pad a batch to its max len """
@@ -33,6 +35,8 @@ class MaiIndexTransform(object):
 		self.flag_vocab['jieba'] = jieba_flag_v
 		self.flag_vocab['pyltp'] = pyltp_flag_v
 
+		self.ques_type_handler = QuestionTypeHandler()
+
 	def __call__(self, item, method):
 		res = {
 			'raw': item,
@@ -40,7 +44,7 @@ class MaiIndexTransform(object):
 			'c_base_idx': self.base_vocab[method].words_to_idxs(item['article_tokens']),
 			'c_sgns_idx': self.sgns_vocab[method].words_to_idxs(item['article_tokens']),
 			'c_flag_idx': self.flag_vocab[method].words_to_idxs(item['article_flags']),
-			'c_in_q': [1.0 if w in item['question_tokens'] else 0.0 for w in item['article_tokens']],
+			'c_in_q': [1.0 if w in ''.join(item['question_tokens']) else 0.0 for w in item['article_tokens']],
 
 			'c_mask': [0] * len(item['article_tokens']),
 			'c_len': len(item['article_tokens']),
@@ -48,7 +52,7 @@ class MaiIndexTransform(object):
 			'q_base_idx': self.base_vocab[method].words_to_idxs(item['question_tokens']),
 			'q_sgns_idx': self.sgns_vocab[method].words_to_idxs(item['question_tokens']),
 			'q_flag_idx': self.flag_vocab[method].words_to_idxs(item['question_flags']),
-			'q_in_c': [1.0 if w in item['article_tokens'] else 0.0 for w in item['question_tokens']],
+			'q_in_c': [1.0 if w in ''.join(item['article_tokens']) else 0.0 for w in item['question_tokens']],
 
 			'q_mask': [0] * len(item['question_tokens']),
 			'q_len': len(item['question_tokens']),
@@ -57,12 +61,16 @@ class MaiIndexTransform(object):
 		if res['q_len'] == 0:
 			res['q_mask'] = [0]
 		if 'answer_token_start' in item:
+			question_types, type_vec = self.ques_type_handler.ana_type(''.join(item['question_tokens']))
 			res.update({
 				'start': item['answer_token_start'],
 				'end': item['answer_token_end'],
 				'r_starts': item['delta_token_ends'],
 				'r_ends': item['delta_token_ends'],
-				'r_scores': item['delta_rouges']
+				'r_scores': item['delta_rouges'],
+				'qtype_vec': type_vec,
+				'c_in_a': [1.0 if w in ''.join(item['answer_tokens']) else 0.0 for w in item['article_tokens']],
+				'q_in_a': [1.0 if w in ''.join(item['answer_tokens']) else 0.0 for w in item['question_tokens']]
 			})
 		return res
 
@@ -101,6 +109,10 @@ class MaiIndexTransform(object):
 			batch.update({
 				'start': torch.LongTensor([sample['start'] for sample in res_batch]),
 				'end': torch.LongTensor([sample['end'] for sample in res_batch]),
+				'qtype_vec': torch.FloatTensor([sample['qtype_vec'] for sample in res_batch]),
+
+				'c_in_a': torch.FloatTensor(pad([sample['c_in_a'] for sample in res_batch], c_max_len, 0.0)),
+				'q_in_a': torch.FloatTensor(pad([sample['q_in_a'] for sample in res_batch], q_max_len, 0.0)),
 				# 'r_starts': [sample['r_starts'] for sample in res_batch],
 				# 'r_ends': [sample['r_ends'] for sample in res_batch],
 				# 'r_scores': [sample['r_scores'] for sample in res_batch]
@@ -150,10 +162,16 @@ class MaiIndexTransform(object):
 			if cuda:
 				y_start = batch['start'].cuda()
 				y_end = batch['end'].cuda()
+				qtype_vec = batch['qtype_vec'].cuda()
+				c_in_a = batch['c_in_a'].cuda()
+				q_in_a = batch['q_in_a'].cuda()
 			else:
 				y_start = batch['start']
 				y_end = batch['end']
-			targets = [y_start, y_end]
+				qtype_vec = batch['qtype_vec']
+				c_in_a = batch['c_in_a']
+				q_in_a = batch['q_in_a']
+			targets = (y_start, y_end, (qtype_vec, c_in_a, q_in_a))
 			return inputs, targets
 		else:
 			return inputs, None

@@ -13,20 +13,29 @@ from utils.serialization import *
 
 rnet1 = config.r_net_1()
 rnet2 = config.r_net_2()
+rnet3 = config.r_net_3()
 mreader1 = config.m_reader_1()
 mreader2 = config.m_reader_2()
+mreader3 = config.m_reader_3()
+
+# cur_cfg = rnet1
+cur_cfg = rnet2
+# cur_cfg = rnet3
+# cur_cfg = mreader1
+# cur_cfg = mreader2
+# cur_cfg = mreader3
 
 
 if __name__ == '__main__':
-	cur_cfg = mreader2
+	print(cur_cfg.model_params)
 	model_dir = './data/models/'
 	range_result_dir = './results/range_prob'
 	submission_dir = './results/submissions'
 	mkdir_if_missing(range_result_dir)
 	mkdir_if_missing(submission_dir)
-	model_path = os.path.join(model_dir, cur_cfg.name+'.state')
-	range_result_path = os.path.join(range_result_dir, cur_cfg.name+'.pkl')
-	submission_path = os.path.join(submission_dir, cur_cfg.name+'.json')
+	model_path = os.path.join(model_dir, cur_cfg.name + '.state')
+	range_result_path = os.path.join(range_result_dir, cur_cfg.name + '.pkl')
+	submission_path = os.path.join(submission_dir, cur_cfg.name + '.json')
 
 	testset_roots = [
 		'./data/test/gen/test_question/samples_jieba500',
@@ -90,7 +99,7 @@ if __name__ == '__main__':
 	print('going through model...')
 	for batch in tqdm(test_loader):
 		inputs, _ = transform.prepare_inputs(batch)
-		s_prob, e_prob = model(*inputs)
+		s_prob, e_prob, _ = model(*inputs)
 		s_prob = s_prob.detach().cpu()
 		e_prob = e_prob.detach().cpu()
 		batch_pos1, batch_pos2, confidence = model.decode(s_prob, e_prob)
