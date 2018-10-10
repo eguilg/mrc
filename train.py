@@ -3,7 +3,6 @@ import time
 
 import torch
 import torch.nn as nn
-from torch.nn.utils import clip_grad_norm_
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -22,10 +21,10 @@ mreader2 = config.m_reader_2()
 mreader3 = config.m_reader_3()
 
 # cur_cfg = rnet1
-cur_cfg = rnet2
+# cur_cfg = rnet2
 # cur_cfg = rnet3
 # cur_cfg = mreader1
-# cur_cfg = mreader2
+cur_cfg = mreader2
 # cur_cfg = mreader3
 
 jieba_only = False
@@ -103,7 +102,7 @@ if __name__ == '__main__':
 		model_param_num += param.nelement()
 	print('num_params_except_embedding:%d' % (model_param_num))
 	# Optimizer
-	optimizer = torch.optim.Adadelta(param_to_update, rho=0.95)
+	optimizer = torch.optim.Adam(param_to_update, lr=1e-4)
 
 	# # Trainer
 	# trainer = Trainer(model, criterion)
@@ -161,7 +160,7 @@ if __name__ == '__main__':
 				train_loss = loss_ptr + 0.2 * (loss_qtype + loss_c_in_a + loss_q_in_a)
 				train_loss.backward()
 
-				clip_grad_norm_(param_to_update, 5)
+				# clip_grad_norm_(param_to_update, 5)
 				optimizer.step()
 
 				ptr_loss_print += loss_ptr.item()

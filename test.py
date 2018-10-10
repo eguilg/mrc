@@ -108,28 +108,31 @@ if __name__ == '__main__':
 		for sample, prob1, prob2, pos1, pos2 in zip(batch['raw'], batch_prob1, batch_prob2, batch_pos1, batch_pos2):
 			answer_prob_dict[sample['question_id']] = {'prob1': prob1,
 													   'prob2': prob2,
-
 													   'article_id': sample['article_id']}
 
-			answer_pos_dict[sample['question_id']] = {'pos1': pos1,
-													  'pos2': pos2,
-													  'raw': sample,
+			answer_pos_dict[sample['question_id']] = {
+													  # 'pos1': pos1,
+													  # 'pos2': pos2,
+													  # 'raw': sample,
+													  'answer': postprocess.gen_ans(pos1, pos2, sample),
 													  'article_id': sample['article_id']}
 	write_pkl(answer_prob_dict, range_result_path)
+	del answer_prob_dict
 
 	sub = read_json(testset_raw_path)
 	print('generating submission...')
 	for article in tqdm(sub):
 		for q in article['questions']:
 			res = answer_pos_dict[q['questions_id']]
-			q['answer'] = postprocess.gen_ans(res['pos1'], res['pos2'], res['raw'])
-			sample = res['raw']
-			if len(sample['question_tokens']) == 0:
-				q['answer'] = ''
-			if article['article_content'] == '' or article['article_title'] == q['question']:
-				q['answer'] = article['article_title']
-			if len(sample['article_tokens']) == 0:
-				q['answer'] = ''
+			q['answer'] = res['answer']
+			# q['answer'] = postprocess.gen_ans(res['pos1'], res['pos1'], res['raw']),
+			# sample = res['raw']
+			# if len(sample['question_tokens']) == 0:
+			# 	q['answer'] = ''
+			# if article['article_content'] == '' or article['article_title'] == q['question']:
+			# 	q['answer'] = article['article_title']
+			# if len(sample['article_tokens']) == 0:
+			# 	q['answer'] = ''
 			q.pop('question')
 		article.pop('article_type')
 		article.pop('article_title')
