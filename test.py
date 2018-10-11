@@ -17,13 +17,19 @@ rnet3 = config.r_net_3()
 mreader1 = config.m_reader_1()
 mreader2 = config.m_reader_2()
 mreader3 = config.m_reader_3()
+bidaf1 = config.bi_daf_1()
+bidaf2 = config.bi_daf_2()
+bidaf3 = config.bi_daf_3()
 
 # cur_cfg = rnet1
-cur_cfg = rnet2
+# cur_cfg = rnet2
 # cur_cfg = rnet3
 # cur_cfg = mreader1
 # cur_cfg = mreader2
-# cur_cfg = mreader3
+cur_cfg = mreader3
+# cur_cfg = bidaf1
+# cur_cfg = bidaf2
+# cur_cfg = bidaf3
 
 
 if __name__ == '__main__':
@@ -95,7 +101,7 @@ if __name__ == '__main__':
 	model.eval()
 
 	answer_prob_dict = {}
-	answer_pos_dict = {}
+	answer_dict = {}
 	print('going through model...')
 	for batch in tqdm(test_loader):
 		inputs, _ = transform.prepare_inputs(batch)
@@ -110,12 +116,8 @@ if __name__ == '__main__':
 													   'prob2': prob2,
 													   'article_id': sample['article_id']}
 
-			answer_pos_dict[sample['question_id']] = {
-													  # 'pos1': pos1,
-													  # 'pos2': pos2,
-													  # 'raw': sample,
-													  'answer': postprocess.gen_ans(pos1, pos2, sample),
-													  'article_id': sample['article_id']}
+			answer_dict[sample['question_id']] = postprocess.gen_ans(pos1, pos2, sample)
+
 	write_pkl(answer_prob_dict, range_result_path)
 	del answer_prob_dict
 
@@ -123,16 +125,13 @@ if __name__ == '__main__':
 	print('generating submission...')
 	for article in tqdm(sub):
 		for q in article['questions']:
-			res = answer_pos_dict[q['questions_id']]
-			q['answer'] = res['answer']
-			# q['answer'] = postprocess.gen_ans(res['pos1'], res['pos1'], res['raw']),
-			# sample = res['raw']
-			# if len(sample['question_tokens']) == 0:
-			# 	q['answer'] = ''
-			# if article['article_content'] == '' or article['article_title'] == q['question']:
-			# 	q['answer'] = article['article_title']
-			# if len(sample['article_tokens']) == 0:
-			# 	q['answer'] = ''
+			q['answer'] = answer_dict[q['questions_id']]
+
+			if q['question'] == '':
+				q['answer'] = ''
+			if q['question'] == article['article_title']:
+				q['answer'] = article['article_title']
+
 			q.pop('question')
 		article.pop('article_type')
 		article.pop('article_title')

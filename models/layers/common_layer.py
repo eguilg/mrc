@@ -63,6 +63,23 @@ class SFU(nn.Module):
 		return o
 
 
+class VectorBasedFusion(nn.Module):
+	"""VectorBasedFusion from SLQA """
+
+	def __init__(self, input_size):
+		super(VectorBasedFusion, self).__init__()
+		self.input_size = input_size
+		self.linear_m = nn.Linear(4 * input_size, input_size)
+		self.linear_g = nn.Linear(4 * input_size, 1)
+
+	def forward(self, x, fusion):
+		r_f = torch.cat([x, fusion, x * fusion, x - fusion], 2)  # b, T, 4s
+		m = F.tanh(self.linear_m(r_f))  # b, T, s
+		g = F.sigmoid(self.linear_g(r_f)).expand(-1, -1, self.input_size)  # b, T, s
+		o = g * m + (1 - g) * x  # b, T, s
+		return o
+
+
 # ------------------------------------------------------------------------------
 # Functional
 # ------------------------------------------------------------------------------

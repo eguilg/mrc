@@ -1,7 +1,9 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from .common_layer import FeedForwardNetwork
+from .rnn_layer import BiRNN
 
 
 class SeqAttnMatch(nn.Module):
@@ -185,3 +187,78 @@ class NonLinearSeqAttn(nn.Module):
 		alpha = F.softmax(scores, -1)
 
 		return alpha
+
+
+class NonLinearCoSeqAttn(nn.Module):
+	"""
+	co-attention of 2 sequences, see SLQA
+	"""
+
+	def __init__(self, input_size, hidden_size):
+		super(NonLinearCoSeqAttn, self).__init__()
+		self.linear_x = nn.Linear(input_size, hidden_size, False)
+		self.linear_y = nn.Linear(input_size, hidden_size, False)
+
+	def forward(self, x, y, x_mask, y_mask):
+		"""
+
+		:param x: batch * lenx * dim
+		:param y: batch * leny * dim
+		:param x_mask:  batch * lenx (1 for padding, 0 for true)
+		:param y_mask:  batch * leny (1 for padding, 0 for true)
+		:return: y_h: batch * lenx * dim
+				 x_h: batch * leny * dim
+		"""
+
+		s = torch.bmm(F.relu(self.linear_x(x)),
+					  F.relu(self.linear_y(y)).transpose(1, 2))  # b, T, J
+
+		x_len = x.size(1)
+		y_len = y.size(1)
+		xx_mask = x_mask.unsqueeze(2).expand(-1, -1, y_len)
+		s.masked_fill_(xx_mask, -1e30)
+
+		yy_mask = y_mask.unsqueeze(1).expand(-1, x_len, -1)
+		s.masked_fill_(yy_mask, -1e30)
+
+		y_h = torch.bmm(F.softmax(s, 2), y)  # b, T, in
+		x_h = torch.bmm(F.softmax(s.transpose(1, 2), 2), x)  # b, J, in
+
+		return y_h, x_h
+
+
+class BilinearSelfAttn(nn.Module):
+	""""
+	bilinearSelfAttn for context self attention in SLQA
+	"""
+
+	def __init__(self, input_size, hidden_size, dropout=0):
+		super(BilinearSelfAttn, self).__init__()
+
+		self.rnn = BiRNN(
+			input_size=input_size,
+			hidden_size=hidden_size,
+			num_layers=1,
+			dropout=dropout,
+		)
+		self.w_l = nn.Linear(input_size, input_size, False)
+
+	def forward(self, x, x_mask):
+		"""
+		Args:
+			x: batch * len * dim
+			x_mask: batch * len (1 for padding, 0 for true)
+		Output:
+			x_h: batch * len * dim
+		"""
+		x = self.rnn(x, x_mask)
+		L = torch.bmm(self.w_l(x), x.transpose(1, 2))  # b, T, T
+
+		x_len = x.size(1)
+		xx_mask = x_mask.unsqueeze(2).expand(-1, -1, x_len)
+		L.masked_fill_(xx_mask, -1e30)
+
+		L = F.softmax(L, -1)  # b, T, T
+		x_h = torch.bmm(L, x)  # b, T, in
+
+		return x_h

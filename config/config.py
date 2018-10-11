@@ -62,7 +62,7 @@ class m_reader_1(BaseConfig):
 			'backbone_type': 'r_net',
 			'ptr_type': 'm_ptr',
 			'dropout': 0.1,
-			'hidden_size': 100,
+			'hidden_size': 75,
 
 			'backbone_kwarg': {'hop': 2},
 			'ptr_kwarg': {'hop': 2}
@@ -77,9 +77,9 @@ class m_reader_2(BaseConfig):
 			'backbone_type': 'm_reader',
 			'ptr_type': 'm_ptr',
 			'dropout': 0.2,
-			'hidden_size': 100,
+			'hidden_size': 75,
 
-			'backbone_kwarg': {'hop': 3},
+			'backbone_kwarg': {'hop': 2},
 			'ptr_kwarg': {'hop': 2}
 		})
 
@@ -92,8 +92,48 @@ class m_reader_3(BaseConfig):
 			'backbone_type': 'm_reader',
 			'ptr_type': 'm_ptr',
 			'dropout': 0.3,
+			'hidden_size': 75,
+
+			'backbone_kwarg': {'hop': 2},
+			'ptr_kwarg': {'hop': 2}
+		})
+
+
+#  BiDAF #################################################
+class bi_daf_1(BaseConfig):
+
+	def __init__(self):
+		super(bi_daf_1, self).__init__()
+		self.name = 'bi_daf_1'
+		self.model_params.update({
+			'backbone_type': 'bi_daf',
+			'ptr_type': 'ptr',
+			'dropout': 0.1,
 			'hidden_size': 100,
 
-			'backbone_kwarg': {'hop': 3},
-			'ptr_kwarg': {'hop': 3}
+		})
+
+
+class bi_daf_2(BaseConfig):
+	def __init__(self):
+		super(bi_daf_2, self).__init__()
+		self.name = 'bi_daf_2'
+		self.model_params.update({
+			'backbone_type': 'bi_daf',
+			'ptr_type': 'ptr',
+			'dropout': 0.2,
+			'hidden_size': 100,
+
+		})
+
+
+class bi_daf_3(BaseConfig):
+	def __init__(self):
+		super(bi_daf_3, self).__init__()
+		self.name = 'bi_daf_3'
+		self.model_params.update({
+			'backbone_type': 'bi_daf',
+			'ptr_type': 'ptr',
+			'dropout': 0.3,
+			'hidden_size': 100,
 		})

@@ -65,6 +65,9 @@ class R_Net(nn.Module):
 			rnn_type=self.rnn_type,
 		)
 
+		self.out1_dim = 2 * hidden_size
+		self.out2_dim = 2 * hidden_size
+
 	def forward(self, c, c_mask, q, q_mask):
 		"""Inputs:
 		x1_list = document word indices of different vocabs		list([batch * len_d])

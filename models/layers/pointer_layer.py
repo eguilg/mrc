@@ -93,3 +93,8 @@ class MemoryAnsPointer(nn.Module):
 			p_e = e.exp()
 
 		return p_s, p_e
+
+
+
+
+# class qVectorPointer(nn.Module):

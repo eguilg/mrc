@@ -2,7 +2,7 @@ from metrics import RougeL, Bleu
 from utils.serialization import *
 
 if __name__ == '__main__':
-	pred_ans_file = './results/submissions/r_net_2.json'
+	pred_ans_file = './results/submissions/m_reader_2.json'
 	gt_ans_file = './data/测试集标准答案.json'
 
 	pred_ans = read_json(pred_ans_file)

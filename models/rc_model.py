@@ -52,8 +52,8 @@ class RCModel(nn.Module):
 		)
 
 		self.ptr_net = self.ptr_type(
-			x_size=2 * self.hidden_size,
-			y_size=2 * self.hidden_size,
+			x_size=self.backbone.out1_dim,
+			y_size=self.backbone.out2_dim,
 			hidden_size=self.hidden_size,
 			dropout_rate=self.dropout,
 			normalize=normalize,

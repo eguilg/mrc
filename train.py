@@ -19,13 +19,19 @@ rnet3 = config.r_net_3()
 mreader1 = config.m_reader_1()
 mreader2 = config.m_reader_2()
 mreader3 = config.m_reader_3()
+bidaf1 = config.bi_daf_1()
+bidaf2 = config.bi_daf_2()
+bidaf3 = config.bi_daf_3()
 
 # cur_cfg = rnet1
 # cur_cfg = rnet2
 # cur_cfg = rnet3
 # cur_cfg = mreader1
-cur_cfg = mreader2
+# cur_cfg = mreader2
 # cur_cfg = mreader3
+# cur_cfg = bidaf1
+cur_cfg = bidaf2
+# cur_cfg = bidaf3
 
 jieba_only = False
 
@@ -125,15 +131,16 @@ if __name__ == '__main__':
 
 	grade = 0
 	print_every = 50
-	val_every = [1000, 500, 300]
+	val_every = [1000, 600, 300]
 	ptr_loss_print = 0
 	qtype_loss_print = 0
 	c_in_a_loss_print = 0
 	q_in_a_loss_print = 0
+
 	if state is not None:
-		if state['best_loss'] < 1.4:
+		if state['best_loss'] < 1.20:
 			grade = 2
-		elif state['best_loss'] < 1.5:
+		elif state['best_loss'] < 1.30:
 			grade = 1
 		else:
 			grade = 0
@@ -162,7 +169,6 @@ if __name__ == '__main__':
 
 				# clip_grad_norm_(param_to_update, 5)
 				optimizer.step()
-
 				ptr_loss_print += loss_ptr.item()
 				qtype_loss_print += loss_qtype.item()
 				c_in_a_loss_print += loss_c_in_a.item()
@@ -224,9 +230,9 @@ if __name__ == '__main__':
 						state['best_epoch'] = e
 						state['best_step'] = global_step
 
-						if state['best_loss'] < 1.4:
+						if state['best_loss'] < 1.20:
 							grade = 2
-						elif state['best_loss'] < 1.5:
+						elif state['best_loss'] < 1.30:
 							grade = 1
 						else:
 							grade = 0
