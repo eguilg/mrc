@@ -30,7 +30,7 @@ class SLQA(nn.Module):
 
 		self.co_attn_layers = nn.ModuleList()
 		self.co_VFUs = nn.ModuleList()
-		self.self_biAttns = nn.ModuleList()
+		self.self_bi_attns = nn.ModuleList()
 		self.self_VFUs = nn.ModuleList()
 		self.aggregate_rnns = nn.ModuleList()
 		for i in range(self.hop):

@@ -30,13 +30,13 @@ slqa3 = config.slqa_3()
 # cur_cfg = rnet2
 # cur_cfg = rnet3
 # cur_cfg = mreader1
-cur_cfg = mreader2
+# cur_cfg = mreader2
 # cur_cfg = mreader3
 # cur_cfg = bidaf1
 # cur_cfg = bidaf2
 # cur_cfg = bidaf3
 # cur_cfg = slqa1
-# cur_cfg = slqa2
+cur_cfg = slqa2
 # cur_cfg = slqa3
 
 jieba_only = False
