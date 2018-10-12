@@ -106,6 +106,8 @@ class QVectorPointer(nn.Module):
 		self.W_s = nn.Linear(x_size, y_size, False)
 		self.W_e = nn.Linear(x_size, y_size, False)
 
+		self.dropout = nn.Dropout(p=self.dropout_rate)
+
 	def forward(self, x, y, x_mask, y_mask):
 
 		gamma = self.w_q(y).squeeze(-1).masked_fill_(y_mask, -float('inf'))
@@ -113,8 +115,8 @@ class QVectorPointer(nn.Module):
 
 		q = torch.bmm(y.transpose(1, 2), gamma)  # b, y_size, 1
 
-		s = torch.bmm(self.W_s(x), q).squeeze(-1)  # b, T
-		e = torch.bmm(self.W_e(x), q).squeeze(-1)  # b, T
+		s = torch.bmm(self.dropout(self.W_s(x)), q).squeeze(-1)  # b, T
+		e = torch.bmm(self.dropout(self.W_e(x)), q).squeeze(-1)  # b, T
 
 		if self.normalize:
 			p_s = F.softmax(s.masked_fill_(x_mask, -float('inf')), -1)
