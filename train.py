@@ -114,7 +114,7 @@ if __name__ == '__main__':
 		model_param_num += param.nelement()
 	print('num_params_except_embedding:%d' % (model_param_num))
 	# Optimizer
-	optimizer = torch.optim.Adam(param_to_update, lr=1e-4)
+	optimizer = torch.optim.Adam(param_to_update, lr=3e-3)
 
 	# # Trainer
 	# trainer = Trainer(model, criterion)
@@ -137,7 +137,9 @@ if __name__ == '__main__':
 
 	grade = 0
 	print_every = 50
-	val_every = [1000, 600, 300]
+	val_every = [1000, 700, 500, 350]
+	drop_lr_frq = [1, 2, 3, 5]
+	val_no_improve = 0
 	ptr_loss_print = 0
 	qtype_loss_print = 0
 	c_in_a_loss_print = 0
@@ -145,8 +147,10 @@ if __name__ == '__main__':
 
 	if state is not None:
 		if state['best_loss'] < 1.20:
-			grade = 2
+			grade = 3
 		elif state['best_loss'] < 1.30:
+			grade = 2
+		elif state['best_loss'] < 2.0:
 			grade = 1
 		else:
 			grade = 0
@@ -237,11 +241,29 @@ if __name__ == '__main__':
 						state['best_step'] = global_step
 
 						if state['best_loss'] < 1.20:
-							grade = 2
+							grade = 3
 						elif state['best_loss'] < 1.30:
+							grade = 2
+						elif state['best_loss'] < 2.5:
 							grade = 1
 						else:
 							grade = 0
+
+						val_no_improve = 0
+					else:
+						val_no_improve += 1
+
+						if val_no_improve >= drop_lr_frq[grade]:
+							print('dropping lr...')
+							val_no_improve = 0
+							lr_total = 0
+							lr_num = 0
+							for param_group in optimizer.param_groups:
+								if param_group['lr'] > 2e-5:
+									param_group['lr'] *= 0.5
+								lr_total += param_group['lr']
+								lr_num += 1
+							print('curr avg lr is {}'.format(lr_total / lr_num))
 
 					state['cur_model_state'] = model.state_dict()
 					state['cur_opt_state'] = optimizer.state_dict()

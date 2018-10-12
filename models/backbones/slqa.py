@@ -76,8 +76,9 @@ class SLQA(nn.Module):
 		d_ii, q_ii = c, q
 		for i in range(self.hop):
 			#  residuals from encoders
-			d_ii = c + d_ii + c * d_ii
-			q_ii = q + q_ii + q * q_ii
+			if i > 0:
+				d_ii = c + d_ii + c * d_ii
+				q_ii = q + q_ii + q * q_ii
 
 			#  co-attention
 			q_h, c_h = self.co_attn_layers[i](d_ii, q_ii, c_mask, q_mask)

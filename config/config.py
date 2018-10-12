@@ -163,7 +163,7 @@ class slqa_2(BaseConfig):
 		self.model_params.update({
 			'backbone_type': 'slqa',
 			'ptr_type': 'qv_ptr',
-			'dropout': 0.4,
+			'dropout': 0.3,
 			'hidden_size': 100,
 
 			'backbone_kwarg': {'hop': 2},
@@ -178,7 +178,7 @@ class slqa_3(BaseConfig):
 		self.model_params.update({
 			'backbone_type': 'slqa',
 			'ptr_type': 'qv_ptr',
-			'dropout': 0.3,
+			'dropout': 0.4,
 			'hidden_size': 100,
 
 			'backbone_kwarg': {'hop': 2},
