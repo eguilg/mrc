@@ -22,6 +22,9 @@ mreader3 = config.m_reader_3()
 bidaf1 = config.bi_daf_1()
 bidaf2 = config.bi_daf_2()
 bidaf3 = config.bi_daf_3()
+slqa1 = config.slqa_1()
+slqa2 = config.slqa_2()
+slqa3 = config.slqa_3()
 
 # cur_cfg = rnet1
 # cur_cfg = rnet2
@@ -30,8 +33,11 @@ bidaf3 = config.bi_daf_3()
 # cur_cfg = mreader2
 # cur_cfg = mreader3
 # cur_cfg = bidaf1
-cur_cfg = bidaf2
+# cur_cfg = bidaf2
 # cur_cfg = bidaf3
+# cur_cfg = slqa1
+cur_cfg = slqa2
+# cur_cfg = slqa3
 
 jieba_only = False
 

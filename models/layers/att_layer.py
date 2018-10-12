@@ -196,8 +196,7 @@ class NonLinearCoSeqAttn(nn.Module):
 
 	def __init__(self, input_size, hidden_size):
 		super(NonLinearCoSeqAttn, self).__init__()
-		self.linear_x = nn.Linear(input_size, hidden_size, False)
-		self.linear_y = nn.Linear(input_size, hidden_size, False)
+		self.W_lin = nn.Linear(input_size, hidden_size, False)
 
 	def forward(self, x, y, x_mask, y_mask):
 		"""
@@ -210,8 +209,8 @@ class NonLinearCoSeqAttn(nn.Module):
 				 x_h: batch * leny * dim
 		"""
 
-		s = torch.bmm(F.relu(self.linear_x(x)),
-					  F.relu(self.linear_y(y)).transpose(1, 2))  # b, T, J
+		s = torch.bmm(F.relu(self.W_lin(x)),
+					  F.relu(self.W_lin(y)).transpose(1, 2))  # b, T, J
 
 		x_len = x.size(1)
 		y_len = y.size(1)
@@ -241,7 +240,7 @@ class BilinearSelfAttn(nn.Module):
 			num_layers=1,
 			dropout=dropout,
 		)
-		self.w_l = nn.Linear(input_size, input_size, False)
+		self.w_l = nn.Linear(2 * hidden_size, 2 * hidden_size, False)
 
 	def forward(self, x, x_mask):
 		"""
@@ -259,6 +258,6 @@ class BilinearSelfAttn(nn.Module):
 		L.masked_fill_(xx_mask, -1e30)
 
 		L = F.softmax(L, -1)  # b, T, T
-		x_h = torch.bmm(L, x)  # b, T, in
+		x_h = torch.bmm(L, x)  # b, T, 2hidden
 
-		return x_h
+		return x, x_h

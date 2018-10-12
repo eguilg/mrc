@@ -95,6 +95,31 @@ class MemoryAnsPointer(nn.Module):
 		return p_s, p_e
 
 
+class QVectorPointer(nn.Module):
+	def __init__(self, x_size, y_size, hidden_size, dropout_rate=0, normalize=True):
+		super(QVectorPointer, self).__init__()
+		self.normalize = normalize
+		self.hidden_size = hidden_size
+		self.dropout_rate = dropout_rate
 
+		self.w_q = nn.Linear(y_size, 1, False)
+		self.W_s = nn.Linear(x_size, y_size, False)
+		self.W_e = nn.Linear(x_size, y_size, False)
 
-# class qVectorPointer(nn.Module):
+	def forward(self, x, y, x_mask, y_mask):
+
+		gamma = self.w_q(y).squeeze(-1).masked_fill_(y_mask, -float('inf'))
+		gamma = F.softmax(gamma, -1).unsqueeze(-1)  # b, J, 1
+
+		q = torch.bmm(y.transpose(1, 2), gamma)  # b, y_size, 1
+
+		s = torch.bmm(self.W_s(x), q).squeeze(-1)  # b, T
+		e = torch.bmm(self.W_e(x), q).squeeze(-1)  # b, T
+
+		if self.normalize:
+			p_s = F.softmax(s.masked_fill_(x_mask, -float('inf')), -1)
+			p_e = F.softmax(e.masked_fill_(x_mask, -float('inf')), -1)
+		else:
+			p_s = s.exp()
+			p_e = e.exp()
+		return p_s, p_e

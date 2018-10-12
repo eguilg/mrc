@@ -63,11 +63,11 @@ class SFU(nn.Module):
 		return o
 
 
-class VectorBasedFusion(nn.Module):
-	"""VectorBasedFusion from SLQA """
+class VFU(nn.Module):
+	"""Vector Based Fusion Unit from SLQA """
 
 	def __init__(self, input_size):
-		super(VectorBasedFusion, self).__init__()
+		super(VFU, self).__init__()
 		self.input_size = input_size
 		self.linear_m = nn.Linear(4 * input_size, input_size)
 		self.linear_g = nn.Linear(4 * input_size, 1)
