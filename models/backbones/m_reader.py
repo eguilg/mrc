@@ -78,7 +78,8 @@ class MnemonicReader(nn.Module):
 		c_check = c
 		for i in range(self.hop):
 			#  residuals from encoders
-			c_check = c + c_check + c * c_check
+			if i > 0:
+				c_check = c + c_check + c * c_check
 
 			#  interactive align
 			q_tilde = self.interactive_aligners[i].forward(c_check, q, q_mask)

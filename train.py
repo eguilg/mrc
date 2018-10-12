@@ -114,7 +114,7 @@ if __name__ == '__main__':
 		model_param_num += param.nelement()
 	print('num_params_except_embedding:%d' % (model_param_num))
 	# Optimizer
-	optimizer = torch.optim.Adam(param_to_update, lr=3e-3)
+	optimizer = torch.optim.Adam(param_to_update, lr=4e-4)
 
 	# # Trainer
 	# trainer = Trainer(model, criterion)
@@ -137,6 +137,7 @@ if __name__ == '__main__':
 
 	grade = 0
 	print_every = 50
+	last_val_step = global_step
 	val_every = [1000, 700, 500, 350]
 	drop_lr_frq = [1, 2, 3, 5]
 	val_no_improve = 0
@@ -206,9 +207,10 @@ if __name__ == '__main__':
 					c_in_a_loss_print = 0
 					q_in_a_loss_print = 0
 
-				if global_step % val_every[grade] == 0:
+				if global_step - last_val_step == val_every[grade]:
 					print('-' * 80)
 					print('Evaluating...')
+					last_val_step = global_step
 					val_loss_total = 0
 					val_step = 0
 					with torch.no_grad():
@@ -244,7 +246,7 @@ if __name__ == '__main__':
 							grade = 3
 						elif state['best_loss'] < 1.30:
 							grade = 2
-						elif state['best_loss'] < 2.5:
+						elif state['best_loss'] < 2.0:
 							grade = 1
 						else:
 							grade = 0
