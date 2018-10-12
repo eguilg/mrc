@@ -39,9 +39,11 @@ class MnemonicReader(nn.Module):
 			# interactive aligner
 			self.interactive_aligners.append(SeqAttnMatch(doc_hidden_size, identity=True))
 			self.interactive_SFUs.append(SFU(doc_hidden_size, 3 * doc_hidden_size))
+
 			# self aligner
 			self.self_aligners.append(SelfAttnMatch(doc_hidden_size, identity=True, diag=False))
 			self.self_SFUs.append(SFU(doc_hidden_size, 3 * doc_hidden_size))
+
 			# aggregating
 			self.aggregate_rnns.append(
 				BiRNN(
@@ -75,9 +77,15 @@ class MnemonicReader(nn.Module):
 		# Align and aggregate
 		c_check = c
 		for i in range(self.hop):
+			#  residuals from encoders
+			c_check = c + c_check + c * c_check
+
+			#  interactive align
 			q_tilde = self.interactive_aligners[i].forward(c_check, q, q_mask)
 			c_bar = self.interactive_SFUs[i].forward(c_check,
 													 torch.cat([q_tilde, c_check * q_tilde, c_check - q_tilde], 2))
+
+			#  self align
 			c_tilde = self.self_aligners[i].forward(c_bar, c_mask)
 			c_hat = self.self_SFUs[i].forward(c_bar, torch.cat([c_tilde, c_bar * c_tilde, c_bar - c_tilde], 2))
 			c_check = self.aggregate_rnns[i].forward(c_hat, c_mask)
