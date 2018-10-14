@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 
 from ..layers.att_layer import SeqAttnMatch, SelfAttnMatch
-from ..layers.common_layer import SFU
+from ..layers.common_layer import SFU, VFU
 from ..layers.rnn_layer import BiRNN
 
 
@@ -30,6 +30,7 @@ class MnemonicReader(nn.Module):
 		doc_hidden_size = 2 * self.hidden_size
 
 		# Interactive aligning, self aligning and aggregating
+		self.res_VFUs = nn.ModuleList()
 		self.interactive_aligners = nn.ModuleList()
 		self.interactive_SFUs = nn.ModuleList()
 		self.self_aligners = nn.ModuleList()
@@ -37,6 +38,8 @@ class MnemonicReader(nn.Module):
 		self.aggregate_rnns = nn.ModuleList()
 		for i in range(self.hop):
 			# interactive aligner
+			if i > 0:
+				self.res_VFUs.append(VFU(doc_hidden_size))
 			self.interactive_aligners.append(SeqAttnMatch(doc_hidden_size, identity=True))
 			self.interactive_SFUs.append(SFU(doc_hidden_size, 3 * doc_hidden_size))
 
@@ -59,14 +62,6 @@ class MnemonicReader(nn.Module):
 		self.out2_dim = 2 * hidden_size
 
 	def forward(self, c, c_mask, q, q_mask):
-		"""Inputs:
-		x1_list = document word indices of different vocabs		list([batch * len_d])
-		x1_f_list = document word features indices				list([batch * len_d])
-		x1_mask = document padding mask      					[batch * len_d]
-		x2_list = question word indices of different vocabs		list([batch * len_q])
-		x2_f_list = document word features indices  			list([batch * len_q])
-		x2_mask = question padding mask        					[batch * len_q]
-		"""
 
 		# Encode document with RNN
 		c = self.encoding_rnn(c, c_mask)
@@ -79,7 +74,7 @@ class MnemonicReader(nn.Module):
 		for i in range(self.hop):
 			#  residuals from encoders
 			if i > 0:
-				c_check = c + c_check + c * c_check
+				c_check = self.res_VFUs[i-1](c, c_check)
 
 			#  interactive align
 			q_tilde = self.interactive_aligners[i].forward(c_check, q, q_mask)

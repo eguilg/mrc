@@ -57,14 +57,6 @@ class SLQA(nn.Module):
 		self.out2_dim = 2 * hidden_size
 
 	def forward(self, c, c_mask, q, q_mask):
-		"""Inputs:
-		x1_list = document word indices of different vocabs		list([batch * len_d])
-		x1_f_list = document word features indices				list([batch * len_d])
-		x1_mask = document padding mask      					[batch * len_d]
-		x2_list = question word indices of different vocabs		list([batch * len_q])
-		x2_f_list = document word features indices  			list([batch * len_q])
-		x2_mask = question padding mask        					[batch * len_q]
-		"""
 
 		# Encode document with RNN
 		c = self.encoding_rnn(c, c_mask)

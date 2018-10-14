@@ -139,14 +139,14 @@ class bi_daf_3(BaseConfig):
 		})
 
 
-#  M READER #################################################
+#  SLQA #################################################
 class slqa_1(BaseConfig):
 
 	def __init__(self):
 		super(slqa_1, self).__init__()
 		self.name = 'slqa_1'
 		self.model_params.update({
-			'backbone_type': 'slqa_3',
+			'backbone_type': 'slqa',
 			'ptr_type': 'qv_ptr',
 			'dropout': 0.2,
 			'hidden_size': 100,
@@ -177,6 +177,55 @@ class slqa_3(BaseConfig):
 		self.name = 'slqa_3'
 		self.model_params.update({
 			'backbone_type': 'slqa',
+			'ptr_type': 'qv_ptr',
+			'dropout': 0.4,
+			'hidden_size': 100,
+
+			'backbone_kwarg': {'hop': 2},
+			'ptr_kwarg': {}
+		})
+
+
+#  SLQA #################################################
+class slqa_plus_1(BaseConfig):
+
+	def __init__(self):
+		super(slqa_plus_1, self).__init__()
+		self.name = 'slqa_plus_1'
+		self.model_params.update({
+			'backbone_type': 'slqa_plus',
+			'ptr_type': 'qv_ptr',
+			'dropout': 0.2,
+			'hidden_size': 100,
+
+			'backbone_kwarg': {'hop': 2},
+			'ptr_kwarg': {}
+		})
+
+
+class slqa_plus_2(BaseConfig):
+
+	def __init__(self):
+		super(slqa_plus_2, self).__init__()
+		self.name = 'slqa_plus_2'
+		self.model_params.update({
+			'backbone_type': 'slqa_plus',
+			'ptr_type': 'qv_ptr',
+			'dropout': 0.3,
+			'hidden_size': 100,
+
+			'backbone_kwarg': {'hop': 2},
+			'ptr_kwarg': {}
+		})
+
+
+class slqa_plus_3(BaseConfig):
+
+	def __init__(self):
+		super(slqa_plus_3, self).__init__()
+		self.name = 'slqa_plus_3'
+		self.model_params.update({
+			'backbone_type': 'slqa_plus',
 			'ptr_type': 'qv_ptr',
 			'dropout': 0.4,
 			'hidden_size': 100,

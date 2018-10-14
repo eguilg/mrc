@@ -23,6 +23,9 @@ bidaf3 = config.bi_daf_3()
 slqa1 = config.slqa_1()
 slqa2 = config.slqa_2()
 slqa3 = config.slqa_3()
+slqa_plus1 = config.slqa_plus_1()
+slqa_plus2 = config.slqa_plus_2()
+slqa_plus3 = config.slqa_plus_3()
 
 # cur_cfg = rnet1
 # cur_cfg = rnet2
@@ -34,8 +37,11 @@ slqa3 = config.slqa_3()
 # cur_cfg = bidaf2
 # cur_cfg = bidaf3
 # cur_cfg = slqa1
-cur_cfg = slqa2
+# cur_cfg = slqa2
 # cur_cfg = slqa3
+# cur_cfg = slqa_plus1
+cur_cfg = slqa_plus2
+# cur_cfg = slqa_plus3
 
 
 if __name__ == '__main__':
