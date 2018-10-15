@@ -3,6 +3,7 @@ import time
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -151,6 +152,7 @@ if __name__ == '__main__':
 	qtype_loss_print = 0
 	c_in_a_loss_print = 0
 	q_in_a_loss_print = 0
+	ans_len_loss_print = 0
 
 	if state is not None:
 		if state['best_loss'] < 1.20:
@@ -173,15 +175,16 @@ if __name__ == '__main__':
 				s_scores, e_scores, extra_outputs = model(*inputs)
 				starts, ends, extra_targets = targets
 
-				q_type_gt, c_in_a_gt, q_in_a_gt = extra_targets
-				q_type_pred, c_in_a_pred, q_in_a_pred = extra_outputs
+				q_type_gt, c_in_a_gt, q_in_a_gt, ans_len_gt = extra_targets
+				q_type_pred, c_in_a_pred, q_in_a_pred, ans_len_logits = extra_outputs
 
 				loss_ptr = criterion_ptr(s_scores, e_scores, starts, ends)
 				loss_qtype = criterion_extra(q_type_pred, q_type_gt)
 				loss_c_in_a = criterion_extra(c_in_a_pred, c_in_a_gt)
 				loss_q_in_a = criterion_extra(q_in_a_pred, q_in_a_gt)
+				loss_ans_len = F.nll_loss(F.log_softmax(ans_len_logits, dim=-1), ans_len_gt)
 
-				train_loss = loss_ptr + 0.2 * (loss_qtype + loss_c_in_a + loss_q_in_a)
+				train_loss = loss_ptr + 0.2 * (loss_qtype + loss_c_in_a + loss_q_in_a + loss_ans_len)
 				train_loss.backward()
 
 				# clip_grad_norm_(param_to_update, 5)
@@ -190,6 +193,7 @@ if __name__ == '__main__':
 				qtype_loss_print += loss_qtype.item()
 				c_in_a_loss_print += loss_c_in_a.item()
 				q_in_a_loss_print += loss_q_in_a.item()
+				ans_len_loss_print += loss_ans_len.item()
 
 				step += 1
 				global_step += 1
@@ -201,17 +205,20 @@ if __name__ == '__main__':
 						  'Loss: Ptr {:.4f}\t'
 						  'Qtype {:.4f}\t'
 						  'CinA {:.4f}\t'
-						  'QinA {:.4f}'
+						  'QinA {:.4f}\t'
+						  'AnsLen {:.4f}'
 						  .format(e, step, len(train_loader),
 								  ptr_loss_print / print_every,
 								  qtype_loss_print / print_every,
 								  c_in_a_loss_print / print_every,
-								  q_in_a_loss_print / print_every))
+								  q_in_a_loss_print / print_every,
+								  ans_len_loss_print / print_every))
 
 					ptr_loss_print = 0
 					qtype_loss_print = 0
 					c_in_a_loss_print = 0
 					q_in_a_loss_print = 0
+					ans_len_loss_print = 0
 
 				if global_step - last_val_step == val_every[grade]:
 					print('-' * 80)
@@ -219,22 +226,44 @@ if __name__ == '__main__':
 					last_val_step = global_step
 					val_loss_total = 0
 					val_step = 0
+					val_sample_num = 0
+					val_ans_len_hit = 0
+					val_start_hit = 0
+					val_end_hit = 0
 					with torch.no_grad():
 						model.eval()
 						for val_batch in dev_loader:
 							# cut, cuda
 							inputs, targets = transform.prepare_inputs(val_batch)
 							starts, ends, extra_targets = targets
-							s_scores, e_scores, _ = model(*inputs)
+							_, _, _, ans_len_gt = extra_targets
+							s_scores, e_scores, ans_len_logits = model(*inputs)
+							ans_len_prob = F.softmax(ans_len_logits, dim=-1)
+
+							ans_len_hit = (torch.max(ans_len_prob, -1)[1] == ans_len_gt).sum().item()
+							start_hit = (torch.max(s_scores, -1)[1] == starts).sum().item()
+							end_hit = (torch.max(e_scores, -1)[1] == ends).sum().item()
+
 							val_loss = criterion_ptr(s_scores, e_scores, starts, ends)
 
 							val_loss_total += val_loss.item()
+							val_ans_len_hit += ans_len_hit
+							val_start_hit += start_hit
+							val_end_hit += end_hit
+							val_sample_num += ans_len_logits.size(0)
 							val_step += 1
 
-					print('Epoch: [{}][{}/{}]\t'
-						  'Val Ptr Loss {:.4f}'
+					print('Val Epoch: [{}][{}/{}]\t'
+						  'Loss: Ptr {:.4f}\t'
+						  'Acc: Start {:.4f}\t'
+						  'End {:.4f}\t'
+						  'AnsLen {:.4f}\t'
 						  .format(e, step, len(train_loader),
-								  val_loss_total / val_step))
+								  val_loss_total / val_step,
+								  val_start_hit / val_sample_num,
+								  val_end_hit / val_sample_num,
+								  val_ans_len_hit / val_sample_num))
+
 					print('-' * 80)
 					if os.path.isfile(model_path):
 						state = torch.load(model_path)

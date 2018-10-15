@@ -72,6 +72,12 @@ class RCModel(nn.Module):
 			bias=True
 		)
 
+		self.ans_len_net = nn.Linear(
+			in_features=2 * self.hidden_size,
+			out_features=21,
+			bias=True
+		)
+
 	def reset_embeddings(self, embed_lists):
 		self.merged_embeddings_jieba = MergedEmbedding(embed_lists['jieba'])
 		self.merged_embeddings_pyltp = MergedEmbedding(embed_lists['pyltp'])
@@ -115,13 +121,15 @@ class RCModel(nn.Module):
 
 		score_s, score_e = self.ptr_net(c, q, x1_mask, x2_mask)
 
+		ans_len_logits = self.ans_len_net(torch.max(torch.cat([c, q], 1), dim=1)[0])
+
 		if self.training:
 			qtype_vec = F.sigmoid(self.qtype_net(q[:, -1, :]))
 			c_in_a = F.sigmoid(self.isin_net(c).squeeze(-1))
 			q_in_a = F.sigmoid(self.isin_net(q).squeeze(-1))
-			return score_s, score_e, (qtype_vec, c_in_a, q_in_a)
+			return score_s, score_e, (qtype_vec, c_in_a, q_in_a, ans_len_logits)
 		else:
-			return score_s, score_e, None
+			return score_s, score_e, ans_len_logits
 
 	@staticmethod
 	def decode(score_s, score_e, top_n=1, max_len=None):
@@ -143,6 +151,57 @@ class RCModel(nn.Module):
 
 			# Zero out negative length and over-length span scores
 			scores.triu_().tril_(max_len - 1)
+
+			# Take argmax or top n
+			scores = scores.numpy()
+			scores_flat = scores.flatten()
+			if top_n == 1:
+				idx_sort = [np.argmax(scores_flat)]
+			elif len(scores_flat) < top_n:
+				idx_sort = np.argsort(-scores_flat)
+			else:
+				idx = np.argpartition(-scores_flat, top_n)[0:top_n]
+				idx_sort = idx[np.argsort(-scores_flat[idx])]
+			s_idx, e_idx = np.unravel_index(idx_sort, scores.shape)
+			pred_s.append(s_idx[0])
+			pred_e.append(e_idx[0])
+			pred_score.append(scores_flat[idx_sort][0])
+		del score_s, score_e
+		return pred_s, pred_e, pred_score
+
+	@staticmethod
+	def decode_cut_ans(score_s, score_e, ans_len_prob, top_n=1, max_len=None):
+		"""Take argmax of constrained score_s * score_e.
+
+		Args:
+			score_s: independent start predictions
+			score_e: independent end predictions
+			ans_len: ans len probs
+			top_n: number of top scored pairs to take
+			max_len: max span length to consider
+		"""
+		pred_s = []
+		pred_e = []
+		pred_score = []
+		max_len = max_len or score_s.size(1)
+		for i in range(score_s.size(0)):
+			# Outer product of scores to get full p_s * p_e matrix
+			scores = torch.ger(score_s[i], score_e[i])
+
+			# Zero out negative length and over-length span scores
+			scores.triu_()
+
+			#  cut ans
+			pred_ans_prob, pred_ans_len = torch.max(ans_len_prob[i], -1)
+			pred_ans_prob, pred_ans_len = pred_ans_prob.item(), pred_ans_len.item()
+
+			if 0 < pred_ans_len < 20 and pred_ans_prob >= 0.5:
+				ptr_prob = torch.max(scores).item()
+				if ptr_prob < 0.6:
+					scores.triu_(max(0, pred_ans_len - 2))
+					scores.tril_(pred_ans_len + 3)
+
+			scores.tril_(max_len - 1)
 
 			# Take argmax or top n
 			scores = scores.numpy()

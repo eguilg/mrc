@@ -65,12 +65,13 @@ class MaiIndexTransform(object):
 			res.update({
 				'start': item['answer_token_start'],
 				'end': item['answer_token_end'],
-				'r_starts': item['delta_token_ends'],
-				'r_ends': item['delta_token_ends'],
-				'r_scores': item['delta_rouges'],
+				# 'r_starts': item['delta_token_ends'],
+				# 'r_ends': item['delta_token_ends'],
+				# 'r_scores': item['delta_rouges'],
 				'qtype_vec': type_vec,
 				'c_in_a': [1.0 if w in ''.join(item['answer_tokens']) else 0.0 for w in item['article_tokens']],
-				'q_in_a': [1.0 if w in ''.join(item['answer_tokens']) else 0.0 for w in item['question_tokens']]
+				'q_in_a': [1.0 if w in ''.join(item['answer_tokens']) else 0.0 for w in item['question_tokens']],
+				'ans_len': min(20, len(item['answer_tokens']))
 			})
 		return res
 
@@ -113,6 +114,8 @@ class MaiIndexTransform(object):
 
 				'c_in_a': torch.FloatTensor(pad([sample['c_in_a'] for sample in res_batch], c_max_len, 0.0)),
 				'q_in_a': torch.FloatTensor(pad([sample['q_in_a'] for sample in res_batch], q_max_len, 0.0)),
+				'ans_len': torch.LongTensor([sample['ans_len'] for sample in res_batch])
+
 				# 'r_starts': [sample['r_starts'] for sample in res_batch],
 				# 'r_ends': [sample['r_ends'] for sample in res_batch],
 				# 'r_scores': [sample['r_scores'] for sample in res_batch]
@@ -165,13 +168,15 @@ class MaiIndexTransform(object):
 				qtype_vec = batch['qtype_vec'].cuda()
 				c_in_a = batch['c_in_a'].cuda()
 				q_in_a = batch['q_in_a'].cuda()
+				ans_len = batch['ans_len'].cuda()
 			else:
 				y_start = batch['start']
 				y_end = batch['end']
 				qtype_vec = batch['qtype_vec']
 				c_in_a = batch['c_in_a']
 				q_in_a = batch['q_in_a']
-			targets = (y_start, y_end, (qtype_vec, c_in_a, q_in_a))
+				ans_len = batch['ans_len']
+			targets = (y_start, y_end, (qtype_vec, c_in_a, q_in_a, ans_len))
 			return inputs, targets
 		else:
 			return inputs, None

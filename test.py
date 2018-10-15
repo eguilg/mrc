@@ -1,5 +1,6 @@
 import multiprocessing as mp
 
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -46,14 +47,19 @@ cur_cfg = slqa_plus2
 
 if __name__ == '__main__':
 	print(cur_cfg.model_params)
+	cut_ans = True
 	model_dir = './data/models/'
 	range_result_dir = './results/range_prob'
 	submission_dir = './results/submissions'
 	mkdir_if_missing(range_result_dir)
 	mkdir_if_missing(submission_dir)
 	model_path = os.path.join(model_dir, cur_cfg.name + '.state')
-	range_result_path = os.path.join(range_result_dir, cur_cfg.name + '.pkl')
-	submission_path = os.path.join(submission_dir, cur_cfg.name + '.json')
+	if cut_ans:
+		range_result_path = os.path.join(range_result_dir, cur_cfg.name + '_cut.pkl')
+		submission_path = os.path.join(submission_dir, cur_cfg.name + '_cut.json')
+	else:
+		range_result_path = os.path.join(range_result_dir, cur_cfg.name + '.pkl')
+		submission_path = os.path.join(submission_dir, cur_cfg.name + '.json')
 
 	testset_roots = [
 		'./data/test/gen/test_question/samples_jieba500',
@@ -117,15 +123,22 @@ if __name__ == '__main__':
 	print('going through model...')
 	for batch in tqdm(test_loader):
 		inputs, _ = transform.prepare_inputs(batch)
-		s_prob, e_prob, _ = model(*inputs)
+		s_prob, e_prob, ans_len_logits = model(*inputs)
 		s_prob = s_prob.detach().cpu()
 		e_prob = e_prob.detach().cpu()
-		batch_pos1, batch_pos2, confidence = model.decode(s_prob, e_prob)
+		ans_len_prob = F.softmax(ans_len_logits, dim=-1).detach().cpu()
+
+		if cut_ans:
+			batch_pos1, batch_pos2, confidence = model.decode_cut_ans(s_prob, e_prob, ans_len_prob)
+		else:
+			batch_pos1, batch_pos2, confidence = model.decode(s_prob, e_prob)
+
 		batch_prob1 = s_prob.numpy()
 		batch_prob2 = e_prob.numpy()
 		for sample, prob1, prob2, pos1, pos2 in zip(batch['raw'], batch_prob1, batch_prob2, batch_pos1, batch_pos2):
 			answer_prob_dict[sample['question_id']] = {'prob1': prob1,
 													   'prob2': prob2,
+													   'ans_len_prob': ans_len_prob,
 													   'article_id': sample['article_id']}
 
 			answer_dict[sample['question_id']] = postprocess.gen_ans(pos1, pos2, sample)
