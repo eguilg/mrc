@@ -19,6 +19,18 @@ def pad(seqs, max_len, pad_val):
 	return data_array
 
 
+def gen_sparse_indices(batch):
+	""" generate sparse indices and values """
+	idx = [[], [], []]
+	val = []
+	for i, sample in enumerate(batch):
+		idx[0].extend([i for m in range(len(sample['r_starts']))])
+		idx[1].extend(sample['r_starts'])
+		idx[2].extend(sample['r_ends'])
+		val.extend(sample['r_scores'])
+	return idx, val
+
+
 class MaiIndexTransform(object):
 	base_vocab = {}
 	sgns_vocab = {}
@@ -65,9 +77,9 @@ class MaiIndexTransform(object):
 			res.update({
 				'start': item['answer_token_start'],
 				'end': item['answer_token_end'],
-				# 'r_starts': item['delta_token_ends'],
-				# 'r_ends': item['delta_token_ends'],
-				# 'r_scores': item['delta_rouges'],
+				'r_starts': item['delta_token_ends'],
+				'r_ends': item['delta_token_ends'],
+				'r_scores': item['delta_rouges'],
 				'qtype_vec': type_vec,
 				'c_in_a': [1.0 if w in ''.join(item['answer_tokens']) else 0.0 for w in item['article_tokens']],
 				'q_in_a': [1.0 if w in ''.join(item['answer_tokens']) else 0.0 for w in item['question_tokens']],
@@ -114,17 +126,17 @@ class MaiIndexTransform(object):
 
 				'c_in_a': torch.FloatTensor(pad([sample['c_in_a'] for sample in res_batch], c_max_len, 0.0)),
 				'q_in_a': torch.FloatTensor(pad([sample['q_in_a'] for sample in res_batch], q_max_len, 0.0)),
-				'ans_len': torch.LongTensor([sample['ans_len'] for sample in res_batch])
+				'ans_len': torch.LongTensor([sample['ans_len'] for sample in res_batch]),
 
-				# 'r_starts': [sample['r_starts'] for sample in res_batch],
-				# 'r_ends': [sample['r_ends'] for sample in res_batch],
-				# 'r_scores': [sample['r_scores'] for sample in res_batch]
+				'delta_rouge': torch.sparse_coo_tensor(*gen_sparse_indices(res_batch),
+													   size=[len(res_batch), c_max_len, c_max_len]).to_dense(),
+
 			})
 
 		return batch
 
 	@staticmethod
-	def prepare_inputs(batch, cuda=True):
+	def prepare_inputs(batch, rouge=False, cuda=True):
 		x1_keys = [
 			'c_base_idx',
 			'c_sgns_idx',
@@ -169,6 +181,10 @@ class MaiIndexTransform(object):
 				c_in_a = batch['c_in_a'].cuda()
 				q_in_a = batch['q_in_a'].cuda()
 				ans_len = batch['ans_len'].cuda()
+				if rouge:
+					delta_rouge = batch['delta_rouge'].cuda()
+				else:
+					delta_rouge = None
 			else:
 				y_start = batch['start']
 				y_end = batch['end']
@@ -176,7 +192,11 @@ class MaiIndexTransform(object):
 				c_in_a = batch['c_in_a']
 				q_in_a = batch['q_in_a']
 				ans_len = batch['ans_len']
-			targets = (y_start, y_end, (qtype_vec, c_in_a, q_in_a, ans_len))
+				if rouge:
+					delta_rouge = batch['delta_rouge']
+				else:
+					delta_rouge = None
+			targets = (y_start, y_end, (qtype_vec, c_in_a, q_in_a, ans_len, delta_rouge))
 			return inputs, targets
 		else:
 			return inputs, None

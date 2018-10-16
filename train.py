@@ -1,6 +1,7 @@
 import multiprocessing as mp
 import time
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -10,7 +11,7 @@ from tqdm import tqdm
 from config import config
 from dataset import (MaiDirDataSource, MaiDirDataset, Vocab,
 					 MaiIndexTransform, MethodBasedBatchSampler)
-from models.losses import PointerLoss
+from models.losses import PointerLoss, RougeLoss
 from models.rc_model import RCModel
 from utils.osutils import *
 
@@ -46,16 +47,21 @@ slqa_plus3 = config.slqa_plus_3()
 cur_cfg = slqa_plus2
 # cur_cfg = slqa_plus3
 
+SEED = 502
+EPOCH = 15
 jieba_only = False
-
+train_rouge = True
+use_data1 = False
 if __name__ == '__main__':
 	print(cur_cfg.model_params)
 	model_dir = './data/models/'
 	mkdir_if_missing(model_dir)
 	model_path = os.path.join(model_dir, cur_cfg.name + '.state')
 
-	SEED = 502
-	EPOCH = 15
+	if train_rouge:
+		model_save_path = os.path.join(model_dir, cur_cfg.name + '_mrt.state')
+	else:
+		model_save_path = model_path
 
 	jieba_base_v = Vocab('./data/embed/base_token_vocab_jieba.pkl',
 						 './data/embed/base_token_embed_jieba.pkl')
@@ -73,31 +79,44 @@ if __name__ == '__main__':
 	if jieba_only:
 		transform = MaiIndexTransform(jieba_base_v, jieba_sgns_v,
 									  jieba_flag_v)  # , pyltp_base_v, pyltp_sgns_v, pyltp_flag_v)
-		trainset_roots = [
-			'./data/train/gen/train_1/samples_jieba500',
-			# './data/train/gen/train_1/samples_pyltp500',
+		trainset1_roots = [
+			'./data/train/gen/train_1/samples_jieba500'
+		]
+		trainset2_roots = [
+			'./data/train/gen/train_2/samples_jieba500'
 		]
 	else:
 		transform = MaiIndexTransform(jieba_base_v, jieba_sgns_v, jieba_flag_v, pyltp_base_v, pyltp_sgns_v,
 									  pyltp_flag_v)
-		trainset_roots = [
+		trainset1_roots = [
 			'./data/train/gen/train_1/samples_jieba500',
 			'./data/train/gen/train_1/samples_pyltp500',
 		]
+		trainset2_roots = [
+			'./data/train/gen/train_2/samples_jieba500',
+			'./data/train/gen/train_2/samples_pyltp500',
+		]
 
-	train_data_source = MaiDirDataSource(trainset_roots)
-	train_data_source.split(dev_split=0.1, seed=SEED)
+	train_data1_source = MaiDirDataSource(trainset1_roots)
+	train_data2_source = MaiDirDataSource(trainset2_roots)
+	train_data2_source.split(dev_split=0.1, seed=SEED)
+
+	data_for_train = train_data2_source.train
+	if use_data1:
+		data_for_train += train_data1_source.data
+		np.random.seed(SEED)
+		np.random.shuffle(data_for_train)
 
 	train_loader = DataLoader(
-		dataset=MaiDirDataset(train_data_source.train, transform),
-		batch_sampler=MethodBasedBatchSampler(train_data_source.train, batch_size=32, seed=SEED),
+		dataset=MaiDirDataset(data_for_train, transform),
+		batch_sampler=MethodBasedBatchSampler(data_for_train, batch_size=32, seed=SEED),
 		num_workers=mp.cpu_count(),
 		collate_fn=transform.batchify
 	)
 
 	dev_loader = DataLoader(
-		dataset=MaiDirDataset(train_data_source.dev, transform),
-		batch_sampler=MethodBasedBatchSampler(train_data_source.dev, batch_size=32, shuffle=False),
+		dataset=MaiDirDataset(train_data2_source.dev, transform),
+		batch_sampler=MethodBasedBatchSampler(train_data2_source.dev, batch_size=32, shuffle=False),
 		num_workers=mp.cpu_count(),
 		collate_fn=transform.batchify
 	)
@@ -110,9 +129,12 @@ if __name__ == '__main__':
 
 	model_params = cur_cfg.model_params
 
-	model = RCModel(model_params, embed_lists)
+	model = RCModel(model_params, embed_lists, normalize=(not train_rouge))
 	model = model.cuda()
-	criterion_ptr = PointerLoss().cuda()
+	if train_rouge:
+		criterion_main = RougeLoss().cuda()
+	else:
+		criterion_main = PointerLoss().cuda()
 	criterion_extra = nn.MultiLabelSoftMarginLoss().cuda()
 
 	param_to_update = list(filter(lambda p: p.requires_grad, model.parameters()))
@@ -163,33 +185,41 @@ if __name__ == '__main__':
 			grade = 1
 		else:
 			grade = 0
+		if train_rouge:
+			grade = 3
 
 	for e in epoch_list:
 		step = 0
 		with tqdm(total=len(train_loader)) as bar:
 			for i, batch in enumerate(train_loader):
-				inputs, targets = transform.prepare_inputs(batch)
+				inputs, targets = transform.prepare_inputs(batch, train_rouge)
 
 				model.train()
 				optimizer.zero_grad()
 				s_scores, e_scores, extra_outputs = model(*inputs)
 				starts, ends, extra_targets = targets
 
-				q_type_gt, c_in_a_gt, q_in_a_gt, ans_len_gt = extra_targets
+				q_type_gt, c_in_a_gt, q_in_a_gt, ans_len_gt, delta_rouge = extra_targets
 				q_type_pred, c_in_a_pred, q_in_a_pred, ans_len_logits = extra_outputs
 
-				loss_ptr = criterion_ptr(s_scores, e_scores, starts, ends)
+				if isinstance(criterion_main, PointerLoss):
+					loss_main = criterion_main(s_scores, e_scores, starts, ends)
+				elif isinstance(criterion_main, RougeLoss) and delta_rouge is not None:
+					loss_main = criterion_main(s_scores, e_scores, delta_rouge)
+				else:
+					raise NotImplementedError
+
 				loss_qtype = criterion_extra(q_type_pred, q_type_gt)
 				loss_c_in_a = criterion_extra(c_in_a_pred, c_in_a_gt)
 				loss_q_in_a = criterion_extra(q_in_a_pred, q_in_a_gt)
 				loss_ans_len = F.nll_loss(F.log_softmax(ans_len_logits, dim=-1), ans_len_gt)
 
-				train_loss = loss_ptr + 0.2 * (loss_qtype + loss_c_in_a + loss_q_in_a + loss_ans_len)
+				train_loss = loss_main + 0.2 * (loss_qtype + loss_c_in_a + loss_q_in_a + loss_ans_len)
 				train_loss.backward()
 
 				# clip_grad_norm_(param_to_update, 5)
 				optimizer.step()
-				ptr_loss_print += loss_ptr.item()
+				ptr_loss_print += loss_main.item()
 				qtype_loss_print += loss_qtype.item()
 				c_in_a_loss_print += loss_c_in_a.item()
 				q_in_a_loss_print += loss_q_in_a.item()
@@ -202,7 +232,7 @@ if __name__ == '__main__':
 					bar.update(min(print_every, step))
 					time.sleep(0.01)
 					print('Epoch: [{}][{}/{}]\t'
-						  'Loss: Ptr {:.4f}\t'
+						  'Loss: Main {:.4f}\t'
 						  'Qtype {:.4f}\t'
 						  'CinA {:.4f}\t'
 						  'QinA {:.4f}\t'
@@ -234,9 +264,9 @@ if __name__ == '__main__':
 						model.eval()
 						for val_batch in dev_loader:
 							# cut, cuda
-							inputs, targets = transform.prepare_inputs(val_batch)
+							inputs, targets = transform.prepare_inputs(val_batch, train_rouge)
 							starts, ends, extra_targets = targets
-							_, _, _, ans_len_gt = extra_targets
+							_, _, _, ans_len_gt, delta_rouge = extra_targets
 							s_scores, e_scores, ans_len_logits = model(*inputs)
 							ans_len_prob = F.softmax(ans_len_logits, dim=-1)
 
@@ -244,7 +274,12 @@ if __name__ == '__main__':
 							start_hit = (torch.max(s_scores, -1)[1] == starts).sum().item()
 							end_hit = (torch.max(e_scores, -1)[1] == ends).sum().item()
 
-							val_loss = criterion_ptr(s_scores, e_scores, starts, ends)
+							if isinstance(criterion_main, PointerLoss):
+								val_loss = criterion_main(s_scores, e_scores, starts, ends)
+							elif isinstance(criterion_main, RougeLoss) and delta_rouge is not None:
+								val_loss = criterion_main(s_scores, e_scores, delta_rouge)
+							else:
+								raise NotImplementedError
 
 							val_loss_total += val_loss.item()
 							val_ans_len_hit += ans_len_hit
@@ -254,7 +289,7 @@ if __name__ == '__main__':
 							val_step += 1
 
 					print('Val Epoch: [{}][{}/{}]\t'
-						  'Loss: Ptr {:.4f}\t'
+						  'Loss: Main {:.4f}\t'
 						  'Acc: Start {:.4f}\t'
 						  'End {:.4f}\t'
 						  'AnsLen {:.4f}\t'
@@ -265,8 +300,8 @@ if __name__ == '__main__':
 								  val_ans_len_hit / val_sample_num))
 
 					print('-' * 80)
-					if os.path.isfile(model_path):
-						state = torch.load(model_path)
+					if os.path.isfile(model_save_path):
+						state = torch.load(model_save_path)
 					else:
 						state = {}
 
@@ -285,6 +320,8 @@ if __name__ == '__main__':
 							grade = 1
 						else:
 							grade = 0
+						if train_rouge:
+							grade = 3
 
 						val_no_improve = 0
 					else:
@@ -308,4 +345,4 @@ if __name__ == '__main__':
 					state['val_loss'] = val_loss_total / val_step
 					state['cur_step'] = global_step
 
-					torch.save(state, model_path)
+					torch.save(state, model_save_path)

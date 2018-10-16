@@ -45,7 +45,7 @@ def trans_to_df(raw_data_path):
 		question_columns = ['article_id', 'question_id', 'question']
 	article_df = pd.DataFrame(data=articles, columns=article_columns)
 	qa_df = pd.DataFrame(data=questions, columns=question_columns)
-
+	qa_df.fillna('', inplace=True)
 	return article_df, qa_df
 
 
@@ -414,7 +414,7 @@ def _apply_find_gold_span(sample_df: pd.DataFrame, article_tokens_col, question_
 				s1 = set(cand_ans)
 				mlen = max(len(s1), len(s2))
 				iou = len(s1.intersection(s2)) / mlen if mlen != 0 else 0.0
-				if iou >= 0.5:
+				if iou >= 0.1:
 					rl.add_inst(cand_ans, ground_ans)
 					if rl.inst_scores[-1] == 1.0:
 						s = max(i - 7, 0)
@@ -437,9 +437,19 @@ def _apply_find_gold_span(sample_df: pd.DataFrame, article_tokens_col, question_
 			if best_idx:
 				row['answer_token_start'] = star_spans[best_idx]
 				row['answer_token_end'] = end_spans[best_idx]
-			row['delta_token_starts'] = star_spans
-			row['delta_token_ends'] = end_spans
-			row['delta_rouges'] = rl.inst_scores
+				select_index = list(
+					filter(lambda i: star_spans[best_idx] <= star_spans[i] <= end_spans[best_idx] or
+									 star_spans[best_idx] <= end_spans[i] <= end_spans[best_idx],
+						   list(range(len(star_spans)))))
+
+				row['delta_token_starts'] = [star_spans[idx] for idx in select_index]
+				row['delta_token_ends'] = [end_spans[idx] for idx in select_index]
+				row['delta_rouges'] = [rl.inst_scores[idx] for idx in select_index]
+
+			else:
+				row['delta_token_starts'] = star_spans
+				row['delta_token_ends'] = end_spans
+				row['delta_rouges'] = rl.inst_scores
 
 		return row
 

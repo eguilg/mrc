@@ -2,7 +2,6 @@
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from . import BACKBONE_TYPES, RNN_TYPES, POINTER_TYPES
 from .layers.embedding_layer import MergedEmbedding
@@ -124,9 +123,9 @@ class RCModel(nn.Module):
 		ans_len_logits = self.ans_len_net(torch.max(torch.cat([c, q], 1), dim=1)[0])
 
 		if self.training:
-			qtype_vec = F.sigmoid(self.qtype_net(q[:, -1, :]))
-			c_in_a = F.sigmoid(self.isin_net(c).squeeze(-1))
-			q_in_a = F.sigmoid(self.isin_net(q).squeeze(-1))
+			qtype_vec = self.qtype_net(q[:, -1, :])
+			c_in_a = self.isin_net(c).squeeze(-1)
+			q_in_a = self.isin_net(q).squeeze(-1)
 			return score_s, score_e, (qtype_vec, c_in_a, q_in_a, ans_len_logits)
 		else:
 			return score_s, score_e, ans_len_logits

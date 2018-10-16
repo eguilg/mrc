@@ -44,22 +44,26 @@ slqa_plus3 = config.slqa_plus_3()
 cur_cfg = slqa_plus2
 # cur_cfg = slqa_plus3
 
-
+cut_ans = True
+use_rouge = False
 if __name__ == '__main__':
 	print(cur_cfg.model_params)
-	cut_ans = True
+
 	model_dir = './data/models/'
 	range_result_dir = './results/range_prob'
 	submission_dir = './results/submissions'
 	mkdir_if_missing(range_result_dir)
 	mkdir_if_missing(submission_dir)
-	model_path = os.path.join(model_dir, cur_cfg.name + '.state')
+	model_name = cur_cfg.name
+	if use_rouge:
+		model_name += '_mrt'
+	model_path = os.path.join(model_dir, model_name + '.state')
 
-	range_result_path = os.path.join(range_result_dir, cur_cfg.name + '.pkl')
+	range_result_path = os.path.join(range_result_dir, model_name + '.pkl')
 	if cut_ans:
-		submission_path = os.path.join(submission_dir, cur_cfg.name + '_cut.json')
+		submission_path = os.path.join(submission_dir, model_name + '_cut.json')
 	else:
-		submission_path = os.path.join(submission_dir, cur_cfg.name + '.json')
+		submission_path = os.path.join(submission_dir, model_name + '.json')
 
 	testset_roots = [
 		'./data/test/gen/test_question/samples_jieba500',
@@ -104,7 +108,7 @@ if __name__ == '__main__':
 
 	model_params = cur_cfg.model_params
 
-	model = RCModel(model_params, embed_lists_train)
+	model = RCModel(model_params, embed_lists_train, normalize=(not use_rouge))
 	print('loading model, ', model_path)
 
 	state = torch.load(model_path)

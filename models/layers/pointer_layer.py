@@ -34,7 +34,7 @@ class PointerNetwork(nn.Module):
 			# 0-1 probabilities
 			scores = F.softmax(s, -1)
 		else:
-			scores = a.exp()
+			scores = F.sigmoid(s)
 		return res, scores
 
 	def forward(self, x, y, x_mask, y_mask):
@@ -89,8 +89,8 @@ class MemoryAnsPointer(nn.Module):
 			p_s = F.softmax(s, dim=1)  # [B, S]
 			p_e = F.softmax(e, dim=1)  # [B, S]
 		else:
-			p_s = s.exp()
-			p_e = e.exp()
+			p_s = F.sigmoid(s)
+			p_e = F.sigmoid(e)
 
 		return p_s, p_e
 
@@ -122,6 +122,6 @@ class QVectorPointer(nn.Module):
 			p_s = F.softmax(s.masked_fill_(x_mask, -float('inf')), -1)
 			p_e = F.softmax(e.masked_fill_(x_mask, -float('inf')), -1)
 		else:
-			p_s = s.exp()
-			p_e = e.exp()
+			p_s = F.sigmoid(s)
+			p_e = F.sigmoid(e)
 		return p_s, p_e
