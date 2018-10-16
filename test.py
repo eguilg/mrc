@@ -54,11 +54,11 @@ if __name__ == '__main__':
 	mkdir_if_missing(range_result_dir)
 	mkdir_if_missing(submission_dir)
 	model_path = os.path.join(model_dir, cur_cfg.name + '.state')
+
+	range_result_path = os.path.join(range_result_dir, cur_cfg.name + '.pkl')
 	if cut_ans:
-		range_result_path = os.path.join(range_result_dir, cur_cfg.name + '_cut.pkl')
 		submission_path = os.path.join(submission_dir, cur_cfg.name + '_cut.json')
 	else:
-		range_result_path = os.path.join(range_result_dir, cur_cfg.name + '.pkl')
 		submission_path = os.path.join(submission_dir, cur_cfg.name + '.json')
 
 	testset_roots = [
@@ -133,12 +133,14 @@ if __name__ == '__main__':
 		else:
 			batch_pos1, batch_pos2, confidence = model.decode(s_prob, e_prob)
 
+		batch_ans_len = ans_len_prob.numpy()
 		batch_prob1 = s_prob.numpy()
 		batch_prob2 = e_prob.numpy()
-		for sample, prob1, prob2, pos1, pos2 in zip(batch['raw'], batch_prob1, batch_prob2, batch_pos1, batch_pos2):
+		for sample, prob1, prob2, pos1, pos2, prob_ans_len in zip(batch['raw'], batch_prob1, batch_prob2, batch_pos1,
+																  batch_pos2, batch_ans_len):
 			answer_prob_dict[sample['question_id']] = {'prob1': prob1,
 													   'prob2': prob2,
-													   'ans_len_prob': ans_len_prob,
+													   'ans_len_prob': prob_ans_len,
 													   'article_id': sample['article_id']}
 
 			answer_dict[sample['question_id']] = postprocess.gen_ans(pos1, pos2, sample)
