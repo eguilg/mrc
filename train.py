@@ -49,19 +49,19 @@ cur_cfg = slqa_plus2
 
 SEED = 502
 EPOCH = 15
-jieba_only = False
+jieba_only = True
 train_rouge = True
 use_data1 = False
 if __name__ == '__main__':
 	print(cur_cfg.model_params)
 	model_dir = './data/models/'
 	mkdir_if_missing(model_dir)
-	model_path = os.path.join(model_dir, cur_cfg.name + '.state')
 
 	if train_rouge:
-		model_save_path = os.path.join(model_dir, cur_cfg.name + '_mrt.state')
+		model_name = cur_cfg.name + '_mrt'
 	else:
-		model_save_path = model_path
+		model_name = cur_cfg.name
+	model_path = os.path.join(model_dir, model_name + '.state')
 
 	jieba_base_v = Vocab('./data/embed/base_token_vocab_jieba.pkl',
 						 './data/embed/base_token_embed_jieba.pkl')
@@ -69,13 +69,13 @@ if __name__ == '__main__':
 						 './data/embed/train_sgns_embed_jieba.pkl')
 	jieba_flag_v = Vocab('./data/embed/base_flag_vocab_jieba.pkl',
 						 './data/embed/base_flag_embed_jieba.pkl')
-
-	pyltp_base_v = Vocab('./data/embed/base_token_vocab_pyltp.pkl',
-						 './data/embed/base_token_embed_pyltp.pkl')
-	pyltp_sgns_v = Vocab('./data/embed/train_sgns_vocab_pyltp.pkl',
-						 './data/embed/train_sgns_embed_pyltp.pkl')
-	pyltp_flag_v = Vocab('./data/embed/base_flag_vocab_pyltp.pkl',
-						 './data/embed/base_flag_embed_pyltp.pkl')
+	if not jieba_only:
+		pyltp_base_v = Vocab('./data/embed/base_token_vocab_pyltp.pkl',
+							 './data/embed/base_token_embed_pyltp.pkl')
+		pyltp_sgns_v = Vocab('./data/embed/train_sgns_vocab_pyltp.pkl',
+							 './data/embed/train_sgns_embed_pyltp.pkl')
+		pyltp_flag_v = Vocab('./data/embed/base_flag_vocab_pyltp.pkl',
+							 './data/embed/base_flag_embed_pyltp.pkl')
 	if jieba_only:
 		transform = MaiIndexTransform(jieba_base_v, jieba_sgns_v,
 									  jieba_flag_v)  # , pyltp_base_v, pyltp_sgns_v, pyltp_flag_v)
@@ -123,8 +123,8 @@ if __name__ == '__main__':
 
 	embed_lists = {
 		'jieba': [jieba_base_v.embeddings, jieba_sgns_v.embeddings, jieba_flag_v.embeddings],
-		'pyltp': [pyltp_base_v.embeddings, pyltp_sgns_v.embeddings, pyltp_flag_v.embeddings]
-		# 'pyltp': []
+		# 'pyltp': [pyltp_base_v.embeddings, pyltp_sgns_v.embeddings, pyltp_flag_v.embeddings]
+		'pyltp': []
 	}
 
 	model_params = cur_cfg.model_params
@@ -186,7 +186,14 @@ if __name__ == '__main__':
 		else:
 			grade = 0
 		if train_rouge:
-			grade = 3
+			if state['best_loss'] < 0.2:
+				grade = 3
+			elif state['best_loss'] < 0.4:
+				grade = 2
+			elif state['best_loss'] < 0.5:
+				grade = 1
+			else:
+				grade = 0
 
 	for e in epoch_list:
 		step = 0
@@ -201,7 +208,6 @@ if __name__ == '__main__':
 
 				q_type_gt, c_in_a_gt, q_in_a_gt, ans_len_gt, delta_rouge = extra_targets
 				q_type_pred, c_in_a_pred, q_in_a_pred, ans_len_logits = extra_outputs
-
 				if isinstance(criterion_main, PointerLoss):
 					loss_main = criterion_main(s_scores, e_scores, starts, ends)
 				elif isinstance(criterion_main, RougeLoss) and delta_rouge is not None:
@@ -267,6 +273,7 @@ if __name__ == '__main__':
 							inputs, targets = transform.prepare_inputs(val_batch, train_rouge)
 							starts, ends, extra_targets = targets
 							_, _, _, ans_len_gt, delta_rouge = extra_targets
+							m = delta_rouge.max()
 							s_scores, e_scores, ans_len_logits = model(*inputs)
 							ans_len_prob = F.softmax(ans_len_logits, dim=-1)
 
@@ -300,8 +307,8 @@ if __name__ == '__main__':
 								  val_ans_len_hit / val_sample_num))
 
 					print('-' * 80)
-					if os.path.isfile(model_save_path):
-						state = torch.load(model_save_path)
+					if os.path.isfile(model_path):
+						state = torch.load(model_path)
 					else:
 						state = {}
 
@@ -321,7 +328,14 @@ if __name__ == '__main__':
 						else:
 							grade = 0
 						if train_rouge:
-							grade = 3
+							if state['best_loss'] < 0.2:
+								grade = 3
+							elif state['best_loss'] < 0.4:
+								grade = 2
+							elif state['best_loss'] < 0.5:
+								grade = 1
+							else:
+								grade = 0
 
 						val_no_improve = 0
 					else:
@@ -345,4 +359,4 @@ if __name__ == '__main__':
 					state['val_loss'] = val_loss_total / val_step
 					state['cur_step'] = global_step
 
-					torch.save(state, model_save_path)
+					torch.save(state, model_path)

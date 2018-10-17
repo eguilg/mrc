@@ -396,6 +396,7 @@ def _apply_find_gold_span(sample_df: pd.DataFrame, article_tokens_col, question_
 		row['delta_token_starts'] = []
 		row['delta_token_ends'] = []
 		row['delta_rouges'] = []
+		row['max_rouge'] = 0
 		rl = RougeL()
 		rl_q = RougeL()
 		ground_ans = ''.join(answer_tokens).strip()
@@ -414,7 +415,7 @@ def _apply_find_gold_span(sample_df: pd.DataFrame, article_tokens_col, question_
 				s1 = set(cand_ans)
 				mlen = max(len(s1), len(s2))
 				iou = len(s1.intersection(s2)) / mlen if mlen != 0 else 0.0
-				if iou >= 0.1:
+				if iou >= 0.2:
 					rl.add_inst(cand_ans, ground_ans)
 					if rl.inst_scores[-1] == 1.0:
 						s = max(i - 7, 0)
@@ -428,28 +429,26 @@ def _apply_find_gold_span(sample_df: pd.DataFrame, article_tokens_col, question_
 			return row
 		else:
 			max_score = np.max(rl.inst_scores)
+			row['max_rouge'] = max_score
 			if max_score == 1:
 				best_idx = rl_q_idx[int(np.argmax(rl_q.r_scores))]
-			elif max_score >= 0.75:
-				best_idx = np.argmax(rl.inst_scores)
 			else:
-				best_idx = None
+				best_idx = np.argmax(rl.inst_scores)
 			if best_idx:
 				row['answer_token_start'] = star_spans[best_idx]
 				row['answer_token_end'] = end_spans[best_idx]
-				select_index = list(
-					filter(lambda i: star_spans[best_idx] <= star_spans[i] <= end_spans[best_idx] or
-									 star_spans[best_idx] <= end_spans[i] <= end_spans[best_idx],
-						   list(range(len(star_spans)))))
+			# select_index = list(
+			#	filter(lambda i: star_spans[best_idx] <= star_spans[i] <= end_spans[best_idx] or
+			#					 star_spans[best_idx] <= end_spans[i] <= end_spans[best_idx],
+			#		   list(range(len(star_spans)))))
 
-				row['delta_token_starts'] = [star_spans[idx] for idx in select_index]
-				row['delta_token_ends'] = [end_spans[idx] for idx in select_index]
-				row['delta_rouges'] = [rl.inst_scores[idx] for idx in select_index]
+			# row['delta_token_starts'] = [star_spans[idx] for idx in select_index]
+			# row['delta_token_ends'] = [end_spans[idx] for idx in select_index]
+			# row['delta_rouges'] = [rl.inst_scores[idx] for idx in select_index]
 
-			else:
-				row['delta_token_starts'] = star_spans
-				row['delta_token_ends'] = end_spans
-				row['delta_rouges'] = rl.inst_scores
+			row['delta_token_starts'] = star_spans
+			row['delta_token_ends'] = end_spans
+			row['delta_rouges'] = rl.inst_scores
 
 		return row
 
@@ -573,10 +572,6 @@ def main(args):
 		gen_dir = args.train_gen_path
 		max_len = args.seq_len_train
 
-	total_croups = []
-	total_flag_croups = []
-	tokens = set()
-
 	for raw_file in os.listdir(raw_dir):
 		# path stuff
 		raw_file_path = osp.join(raw_dir, raw_file)
@@ -591,14 +586,23 @@ def main(args):
 			write_json(croups, osp.join(out_dir, 'croups_' + args.method + '.json'))
 			write_json(flag_croups, osp.join(out_dir, 'flag_croups_' + args.method + '.json'))
 			for sample in samples:
-				# filter samples of which answers can't be found(r < 0.75)
-				if (not args.test) and 'answer_token_start' in sample.keys() and sample['answer_token_start'] < 0:
-					continue
 				write_json(sample,
-						   osp.join(samples_out_dir, '_'.join([sample['article_id'], sample['question_id']]) + '.json'))
-		else:
-			croups = read_json(osp.join(out_dir, 'croups_' + args.method + '.json'))
-			flag_croups = read_json(osp.join(out_dir, 'flag_croups_' + args.method + '.json'))
+						   osp.join(samples_out_dir, '_'.join([sample['article_id'],
+															   sample['question_id'],
+															   str(round(sample['max_rouge'], 4))]) + '.json'))
+
+	total_croups = []
+	total_flag_croups = []
+	tokens = set()
+
+	for raw_file in os.listdir(raw_dir):
+		# path stuff
+
+		raw_file_name = osp.splitext(raw_file)[0]
+		out_dir = osp.join(gen_dir, raw_file_name)
+
+		croups = read_json(osp.join(out_dir, 'croups_' + args.method + '.json'))
+		flag_croups = read_json(osp.join(out_dir, 'flag_croups_' + args.method + '.json'))
 
 		if not args.test:
 			total_croups += croups

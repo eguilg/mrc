@@ -77,7 +77,7 @@ class MaiIndexTransform(object):
 			res.update({
 				'start': item['answer_token_start'],
 				'end': item['answer_token_end'],
-				'r_starts': item['delta_token_ends'],
+				'r_starts': item['delta_token_starts'],
 				'r_ends': item['delta_token_ends'],
 				'r_scores': item['delta_rouges'],
 				'qtype_vec': type_vec,
