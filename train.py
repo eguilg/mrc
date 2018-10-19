@@ -69,13 +69,13 @@ if __name__ == '__main__':
 						 './data/embed/train_sgns_embed_jieba.pkl')
 	jieba_flag_v = Vocab('./data/embed/base_flag_vocab_jieba.pkl',
 						 './data/embed/base_flag_embed_jieba.pkl')
-	if not jieba_only:
-		pyltp_base_v = Vocab('./data/embed/base_token_vocab_pyltp.pkl',
-							 './data/embed/base_token_embed_pyltp.pkl')
-		pyltp_sgns_v = Vocab('./data/embed/train_sgns_vocab_pyltp.pkl',
-							 './data/embed/train_sgns_embed_pyltp.pkl')
-		pyltp_flag_v = Vocab('./data/embed/base_flag_vocab_pyltp.pkl',
-							 './data/embed/base_flag_embed_pyltp.pkl')
+
+	pyltp_base_v = Vocab('./data/embed/base_token_vocab_pyltp.pkl',
+						 './data/embed/base_token_embed_pyltp.pkl')
+	pyltp_sgns_v = Vocab('./data/embed/train_sgns_vocab_pyltp.pkl',
+						 './data/embed/train_sgns_embed_pyltp.pkl')
+	pyltp_flag_v = Vocab('./data/embed/base_flag_vocab_pyltp.pkl',
+						 './data/embed/base_flag_embed_pyltp.pkl')
 	if jieba_only:
 		transform = MaiIndexTransform(jieba_base_v, jieba_sgns_v,
 									  jieba_flag_v)  # , pyltp_base_v, pyltp_sgns_v, pyltp_flag_v)
@@ -99,9 +99,10 @@ if __name__ == '__main__':
 
 	train_data1_source = MaiDirDataSource(trainset1_roots)
 	train_data2_source = MaiDirDataSource(trainset2_roots)
-	train_data2_source.split(dev_split=0.1, seed=SEED)
+	train_data1_source.split(dev_split=0.1, seed=SEED)
 
-	data_for_train = train_data2_source.train
+	data_for_train = train_data1_source.train
+	data_for_dev = train_data1_source.dev
 	if use_data1:
 		data_for_train += train_data1_source.data
 		np.random.seed(SEED)
@@ -115,16 +116,16 @@ if __name__ == '__main__':
 	)
 
 	dev_loader = DataLoader(
-		dataset=MaiDirDataset(train_data2_source.dev, transform),
-		batch_sampler=MethodBasedBatchSampler(train_data2_source.dev, batch_size=32, shuffle=False),
+		dataset=MaiDirDataset(data_for_dev, transform),
+		batch_sampler=MethodBasedBatchSampler(data_for_dev, batch_size=32, shuffle=False),
 		num_workers=mp.cpu_count(),
 		collate_fn=transform.batchify
 	)
 
 	embed_lists = {
 		'jieba': [jieba_base_v.embeddings, jieba_sgns_v.embeddings, jieba_flag_v.embeddings],
-		# 'pyltp': [pyltp_base_v.embeddings, pyltp_sgns_v.embeddings, pyltp_flag_v.embeddings]
-		'pyltp': []
+		'pyltp': [pyltp_base_v.embeddings, pyltp_sgns_v.embeddings, pyltp_flag_v.embeddings]
+		# 'pyltp': []
 	}
 
 	model_params = cur_cfg.model_params
@@ -169,6 +170,8 @@ if __name__ == '__main__':
 	last_val_step = global_step
 	val_every = [1000, 700, 500, 350]
 	drop_lr_frq = [1, 2, 3, 5]
+	# val_every_min = 350
+	# val_every = 1000
 	val_no_improve = 0
 	ptr_loss_print = 0
 	qtype_loss_print = 0
@@ -185,15 +188,16 @@ if __name__ == '__main__':
 			grade = 1
 		else:
 			grade = 0
+
 		if train_rouge:
-			if state['best_loss'] < 0.2:
-				grade = 3
-			elif state['best_loss'] < 0.4:
-				grade = 2
-			elif state['best_loss'] < 0.5:
-				grade = 1
-			else:
-				grade = 0
+			# if state['best_loss'] < 0.6:
+			# 	grade = 3
+			# elif state['best_loss'] < 0.65:
+			# 	grade = 2
+			# elif state['best_loss'] < 0.7:
+			# 	grade = 1
+			# else:
+			grade = 0
 
 	for e in epoch_list:
 		step = 0
@@ -236,7 +240,7 @@ if __name__ == '__main__':
 
 				if global_step % print_every == 0:
 					bar.update(min(print_every, step))
-					time.sleep(0.01)
+					time.sleep(0.02)
 					print('Epoch: [{}][{}/{}]\t'
 						  'Loss: Main {:.4f}\t'
 						  'Qtype {:.4f}\t'
@@ -328,14 +332,14 @@ if __name__ == '__main__':
 						else:
 							grade = 0
 						if train_rouge:
-							if state['best_loss'] < 0.2:
-								grade = 3
-							elif state['best_loss'] < 0.4:
-								grade = 2
-							elif state['best_loss'] < 0.5:
-								grade = 1
-							else:
-								grade = 0
+							# if state['best_loss'] < 0.6:
+							# 	grade = 3
+							# elif state['best_loss'] < 0.65:
+							# 	grade = 2
+							# elif state['best_loss'] < 0.7:
+							# 	grade = 1
+							# else:
+							grade = 0
 
 						val_no_improve = 0
 					else:

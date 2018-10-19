@@ -110,17 +110,20 @@ class QVectorPointer(nn.Module):
 
 	def forward(self, x, y, x_mask, y_mask):
 
-		gamma = self.w_q(y).squeeze(-1).masked_fill_(y_mask, -float('inf'))
+		gamma = self.w_q(y).squeeze(-1)
+		gamma.data.masked_fill_(y_mask, -float('inf'))
 		gamma = F.softmax(gamma, -1).unsqueeze(-1)  # b, J, 1
 
 		q = torch.bmm(y.transpose(1, 2), gamma)  # b, y_size, 1
 
 		s = torch.bmm(self.dropout(self.W_s(x)), q).squeeze(-1)  # b, T
 		e = torch.bmm(self.dropout(self.W_e(x)), q).squeeze(-1)  # b, T
+		s.data.masked_fill_(x_mask.data, -float('inf'))
+		e.data.masked_fill_(x_mask.data, -float('inf'))
 
 		if self.normalize:
-			p_s = F.softmax(s.masked_fill_(x_mask, -float('inf')), -1)
-			p_e = F.softmax(e.masked_fill_(x_mask, -float('inf')), -1)
+			p_s = F.softmax(s, -1)
+			p_e = F.softmax(e, -1)
 		else:
 			p_s = F.sigmoid(s)
 			p_e = F.sigmoid(e)
