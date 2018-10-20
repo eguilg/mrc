@@ -434,7 +434,7 @@ def _apply_find_gold_span(sample_df: pd.DataFrame, article_tokens_col, question_
 				best_idx = rl_q_idx[int(np.argmax(rl_q.r_scores))]
 			else:
 				best_idx = np.argmax(rl.inst_scores)
-			if best_idx:
+			if best_idx is not None:
 				row['answer_token_start'] = star_spans[best_idx]
 				row['answer_token_end'] = end_spans[best_idx]
 			# select_index = list(

@@ -49,8 +49,8 @@ cur_cfg = slqa_plus2
 
 SEED = 502
 EPOCH = 15
-jieba_only = True
-train_rouge = True
+jieba_only = False
+train_rouge = False
 use_data1 = False
 if __name__ == '__main__':
 	print(cur_cfg.model_params)
@@ -99,10 +99,10 @@ if __name__ == '__main__':
 
 	train_data1_source = MaiDirDataSource(trainset1_roots)
 	train_data2_source = MaiDirDataSource(trainset2_roots)
-	train_data1_source.split(dev_split=0.1, seed=SEED)
+	train_data2_source.split(dev_split=0.1, seed=SEED)
 
-	data_for_train = train_data1_source.train
-	data_for_dev = train_data1_source.dev
+	data_for_train = train_data2_source.train
+	data_for_dev = train_data2_source.dev
 	if use_data1:
 		data_for_train += train_data1_source.data
 		np.random.seed(SEED)
@@ -277,7 +277,7 @@ if __name__ == '__main__':
 							inputs, targets = transform.prepare_inputs(val_batch, train_rouge)
 							starts, ends, extra_targets = targets
 							_, _, _, ans_len_gt, delta_rouge = extra_targets
-							m = delta_rouge.max()
+
 							s_scores, e_scores, ans_len_logits = model(*inputs)
 							ans_len_prob = F.softmax(ans_len_logits, dim=-1)
 

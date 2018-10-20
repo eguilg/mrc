@@ -9,7 +9,7 @@ from utils.serialization import *
 
 class MaiDirDataSource(object):
 
-	def __init__(self, root_dirs):
+	def __init__(self, root_dirs, score_thresh=0.75):
 		self.data = []  # (aid, qid, method, fpath)
 		self.all_aid = set()
 		self.dev_split = 0
@@ -39,9 +39,10 @@ class MaiDirDataSource(object):
 					ids = osp.splitext(fname)[0].split('_')
 					aid = ids[0]
 					qid = ids[1]
-
-					self.data.append((aid, qid, method, fpath))
-					self.all_aid.add(aid)
+					score = float(ids[2])
+					if score >= score_thresh:
+						self.data.append((aid, qid, score, method, fpath))
+						self.all_aid.add(aid)
 				except Exception:
 					continue
 			print("added root dir: {}".format(rdir))
@@ -75,7 +76,7 @@ class MaiDirDataset(Dataset):
 		return len(self.data_source)
 
 	def __get_single_item__(self, index):
-		aid, qid, method, fpath = self.data_source[index]
+		aid, qid, score, method, fpath = self.data_source[index]
 		item = read_json(fpath)
 		return self.transform(item, method)
 

@@ -1,7 +1,6 @@
 """ conduct transformation from raw data to padded batches of inputs """
 
 import torch
-
 from .feature_handler.question_handler import QuestionTypeHandler
 
 
@@ -24,10 +23,15 @@ def gen_sparse_indices(batch):
 	idx = [[], [], []]
 	val = []
 	for i, sample in enumerate(batch):
-		idx[0].extend([i for m in range(len(sample['r_starts']))])
-		idx[1].extend(sample['r_starts'])
-		idx[2].extend(sample['r_ends'])
-		val.extend(sample['r_scores'])
+		sample = sample['raw']
+		select_index = list(
+			filter(lambda i: sample['answer_token_start'] <= sample['delta_token_starts'][i] <= sample['answer_token_end'] or
+							 sample['answer_token_start'] <= sample['delta_token_ends'][i] <= sample['answer_token_end'],
+				   list(range(len(sample['delta_token_starts'])))))
+		idx[0].extend([i for m in range(len(select_index))])
+		idx[1].extend([sample['delta_token_starts'][idx] for idx in select_index])
+		idx[2].extend([sample['delta_token_ends'][idx] for idx in select_index])
+		val.extend([sample['delta_rouges'][idx] for idx in select_index])
 	return idx, val
 
 
@@ -77,9 +81,9 @@ class MaiIndexTransform(object):
 			res.update({
 				'start': item['answer_token_start'],
 				'end': item['answer_token_end'],
-				'r_starts': item['delta_token_starts'],
-				'r_ends': item['delta_token_ends'],
-				'r_scores': item['delta_rouges'],
+				# 'r_starts': item['delta_token_starts'],
+				# 'r_ends': item['delta_token_ends'],
+				# 'r_scores': item['delta_rouges'],
 				'qtype_vec': type_vec,
 				'c_in_a': [1.0 if w in ''.join(item['answer_tokens']) else 0.0 for w in item['article_tokens']],
 				'q_in_a': [1.0 if w in ''.join(item['answer_tokens']) else 0.0 for w in item['question_tokens']],
