@@ -13,7 +13,7 @@ class MethodBasedBatchSampler(Sampler):
 		self.method_dict = defaultdict(int)
 		self.shuffle = shuffle
 		self.seed = seed
-		for _, _, _, method, _ in self.data_source:
+		for _, _, method, _ in self.data_source:
 			self.method_dict[method] += 1
 
 	def __iter__(self):
@@ -23,7 +23,7 @@ class MethodBasedBatchSampler(Sampler):
 			# np.random.seed(self.seed)
 			np.random.shuffle(shuffled_indices)
 		for idx in shuffled_indices:
-			_, _, _, method, _ = self.data_source[idx]
+			_, _, method, _ = self.data_source[idx]
 			method_batch_dict[method].append(int(idx))
 			if len(method_batch_dict[method]) == self.batch_size:
 				yield method_batch_dict[method]

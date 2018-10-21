@@ -45,7 +45,7 @@ cur_cfg = slqa_plus2
 # cur_cfg = slqa_plus3
 
 cut_ans = True
-use_rouge = True
+use_rouge = False
 if __name__ == '__main__':
 	print(cur_cfg.model_params)
 

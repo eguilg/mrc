@@ -180,9 +180,9 @@ if __name__ == '__main__':
 	ans_len_loss_print = 0
 
 	if state is not None:
-		if state['best_loss'] < 1.20:
+		if state['best_loss'] < 1.45:
 			grade = 3
-		elif state['best_loss'] < 1.30:
+		elif state['best_loss'] < 1.60:
 			grade = 2
 		elif state['best_loss'] < 2.0:
 			grade = 1
@@ -292,6 +292,8 @@ if __name__ == '__main__':
 							else:
 								raise NotImplementedError
 
+
+
 							val_loss_total += val_loss.item()
 							val_ans_len_hit += ans_len_hit
 							val_start_hit += start_hit
@@ -323,9 +325,9 @@ if __name__ == '__main__':
 						state['best_epoch'] = e
 						state['best_step'] = global_step
 
-						if state['best_loss'] < 1.20:
+						if state['best_loss'] < 1.45:
 							grade = 3
-						elif state['best_loss'] < 1.30:
+						elif state['best_loss'] < 1.6:
 							grade = 2
 						elif state['best_loss'] < 2.0:
 							grade = 1

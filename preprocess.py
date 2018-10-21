@@ -437,14 +437,6 @@ def _apply_find_gold_span(sample_df: pd.DataFrame, article_tokens_col, question_
 			if best_idx is not None:
 				row['answer_token_start'] = star_spans[best_idx]
 				row['answer_token_end'] = end_spans[best_idx]
-			# select_index = list(
-			#	filter(lambda i: star_spans[best_idx] <= star_spans[i] <= end_spans[best_idx] or
-			#					 star_spans[best_idx] <= end_spans[i] <= end_spans[best_idx],
-			#		   list(range(len(star_spans)))))
-
-			# row['delta_token_starts'] = [star_spans[idx] for idx in select_index]
-			# row['delta_token_ends'] = [end_spans[idx] for idx in select_index]
-			# row['delta_rouges'] = [rl.inst_scores[idx] for idx in select_index]
 
 			row['delta_token_starts'] = star_spans
 			row['delta_token_ends'] = end_spans
@@ -586,10 +578,15 @@ def main(args):
 			write_json(croups, osp.join(out_dir, 'croups_' + args.method + '.json'))
 			write_json(flag_croups, osp.join(out_dir, 'flag_croups_' + args.method + '.json'))
 			for sample in samples:
-				write_json(sample,
-						   osp.join(samples_out_dir, '_'.join([sample['article_id'],
+				if 'max_rouge' in sample.keys() and args.test:
+					sample_fname = '_'.join([sample['article_id'],
 															   sample['question_id'],
-															   str(round(sample['max_rouge'], 4))]) + '.json'))
+															   str(round(sample['max_rouge'], 4))]) + '.json'
+				else:
+					sample_fname = '_'.join([sample['article_id'],
+											 sample['question_id']]) + '.json'
+
+				write_json(sample, osp.join(samples_out_dir, sample_fname))
 
 	total_croups = []
 	total_flag_croups = []

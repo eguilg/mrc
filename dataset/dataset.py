@@ -39,10 +39,10 @@ class MaiDirDataSource(object):
 					ids = osp.splitext(fname)[0].split('_')
 					aid = ids[0]
 					qid = ids[1]
-					score = float(ids[2])
-					if score >= score_thresh:
-						self.data.append((aid, qid, score, method, fpath))
-						self.all_aid.add(aid)
+					if len(ids) == 3 and float(ids[2]) < score_thresh:
+						continue
+					self.data.append((aid, qid, method, fpath))
+					self.all_aid.add(aid)
 				except Exception:
 					continue
 			print("added root dir: {}".format(rdir))
@@ -76,7 +76,7 @@ class MaiDirDataset(Dataset):
 		return len(self.data_source)
 
 	def __get_single_item__(self, index):
-		aid, qid, score, method, fpath = self.data_source[index]
+		aid, qid, method, fpath = self.data_source[index]
 		item = read_json(fpath)
 		return self.transform(item, method)
 
