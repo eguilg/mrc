@@ -14,6 +14,9 @@ from dataset import (MaiDirDataSource, MaiDirDataset, Vocab,
 from models.losses import PointerLoss, RougeLoss
 from models.rc_model import RCModel
 from utils.osutils import *
+from metrics import RougeL
+
+import postprocess
 
 rnet1 = config.r_net_1()
 rnet2 = config.r_net_2()
@@ -180,23 +183,13 @@ if __name__ == '__main__':
 	ans_len_loss_print = 0
 
 	if state is not None:
-		if state['best_loss'] < 1.45:
+		if state['best_score'] > 0.90:
 			grade = 3
-		elif state['best_loss'] < 1.60:
+		elif state['best_score'] > 0.89:
 			grade = 2
-		elif state['best_loss'] < 2.0:
+		elif state['best_score'] > 0.88:
 			grade = 1
 		else:
-			grade = 0
-
-		if train_rouge:
-			# if state['best_loss'] < 0.6:
-			# 	grade = 3
-			# elif state['best_loss'] < 0.65:
-			# 	grade = 2
-			# elif state['best_loss'] < 0.7:
-			# 	grade = 1
-			# else:
 			grade = 0
 
 	for e in epoch_list:
@@ -270,6 +263,7 @@ if __name__ == '__main__':
 					val_ans_len_hit = 0
 					val_start_hit = 0
 					val_end_hit = 0
+					rl = RougeL()
 					with torch.no_grad():
 						model.eval()
 						for val_batch in dev_loader:
@@ -292,7 +286,13 @@ if __name__ == '__main__':
 							else:
 								raise NotImplementedError
 
-
+							s_scores = s_scores.detach().cpu()
+							e_scores = e_scores.detach().cpu()
+							batch_pos1, batch_pos2, confidence = model.decode(s_scores, e_scores)
+							for pos1, pos2, sample in zip(batch_pos1, batch_pos2, val_batch['raw']):
+								gt_ans = sample['answer']
+								pred_ans = postprocess.gen_ans(pos1, pos2, sample)
+								rl.add_inst(pred_ans, gt_ans)
 
 							val_loss_total += val_loss.item()
 							val_ans_len_hit += ans_len_hit
@@ -301,6 +301,7 @@ if __name__ == '__main__':
 							val_sample_num += ans_len_logits.size(0)
 							val_step += 1
 
+					rouge_score = rl.get_score()
 					print('Val Epoch: [{}][{}/{}]\t'
 						  'Loss: Main {:.4f}\t'
 						  'Acc: Start {:.4f}\t'
@@ -311,6 +312,7 @@ if __name__ == '__main__':
 								  val_start_hit / val_sample_num,
 								  val_end_hit / val_sample_num,
 								  val_ans_len_hit / val_sample_num))
+					print('RougeL: {: .4f}'.format(rouge_score))
 
 					print('-' * 80)
 					if os.path.isfile(model_path):
@@ -318,29 +320,21 @@ if __name__ == '__main__':
 					else:
 						state = {}
 
-					if state == {} or state['best_loss'] > (val_loss_total / val_step):
+					if state == {} or state['best_score'] < rouge_score:
 						state['best_model_state'] = model.state_dict()
 						state['best_opt_state'] = optimizer.state_dict()
 						state['best_loss'] = val_loss_total / val_step
+						state['best_score'] = rouge_score
 						state['best_epoch'] = e
 						state['best_step'] = global_step
 
-						if state['best_loss'] < 1.45:
+						if state['best_score'] > 0.90:
 							grade = 3
-						elif state['best_loss'] < 1.6:
+						elif state['best_score'] > 0.89:
 							grade = 2
-						elif state['best_loss'] < 2.0:
+						elif state['best_score'] > 0.88:
 							grade = 1
 						else:
-							grade = 0
-						if train_rouge:
-							# if state['best_loss'] < 0.6:
-							# 	grade = 3
-							# elif state['best_loss'] < 0.65:
-							# 	grade = 2
-							# elif state['best_loss'] < 0.7:
-							# 	grade = 1
-							# else:
 							grade = 0
 
 						val_no_improve = 0
@@ -353,7 +347,7 @@ if __name__ == '__main__':
 							lr_total = 0
 							lr_num = 0
 							for param_group in optimizer.param_groups:
-								if param_group['lr'] > 2e-5:
+								if param_group['lr'] >= 1e-4:
 									param_group['lr'] *= 0.5
 								lr_total += param_group['lr']
 								lr_num += 1
@@ -363,6 +357,8 @@ if __name__ == '__main__':
 					state['cur_opt_state'] = optimizer.state_dict()
 					state['cur_epoch'] = e
 					state['val_loss'] = val_loss_total / val_step
+					state['val_score'] = rouge_score
 					state['cur_step'] = global_step
+
 
 					torch.save(state, model_path)

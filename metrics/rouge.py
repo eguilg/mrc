@@ -1,4 +1,5 @@
 # coding = utf-8
+from utils.serialization import *
 
 
 class RougeL(object):
@@ -7,6 +8,22 @@ class RougeL(object):
         self.inst_scores = []
         self.r_scores = []
         self.p_scores = []
+
+        self.times = 0
+
+        self.cache_path = './rouge.cache.pkl'
+        self.score_cache = {}
+        self._load_cache()
+
+    def _load_cache(self):
+        try:
+            self.score_cache = read_pkl(self.cache_path)
+        except:
+            self.score_cache = {}
+
+    def _save_cache(self):
+        print('Saving Rouge-L cache.')
+        write_pkl(self.score_cache, self.cache_path)
 
     def _lcs(self, x, y):
         """
@@ -48,13 +65,9 @@ class RougeL(object):
         n, m = len(x), len(y)
         return table[n, m]
 
-    def add_inst(self, cand: str, ref: str):
-        """根据参考答案分析出预测答案的分数
-
-        Arguments:
-            cand {str} -- 预测答案
-            ref {str} -- 参考答案
-        """
+    def calc_score(self, cand, ref):
+        if (cand, ref) in self.score_cache:
+            return self.score_cache[(cand, ref)]
 
         basic_lcs = self.lcs(cand, ref)
         p_denom = len(cand)
@@ -63,9 +76,24 @@ class RougeL(object):
         rec = basic_lcs / r_denom if r_denom > 0. else 0.
         if prec != 0 and rec != 0:
             score = ((1 + self.gamma ** 2) * prec * rec) / \
-                float(rec + self.gamma**2 * prec)
+                    float(rec + self.gamma ** 2 * prec)
         else:
             score = 0
+
+        self.score_cache[(cand, ref)] = (score, rec, prec)
+        self.times += 1
+        if self.times % 5000 == 0:
+            self._save_cache()
+        return (score, rec, prec)
+
+    def add_inst(self, cand: str, ref: str):
+        """根据参考答案分析出预测答案的分数
+
+        Arguments:
+            cand {str} -- 预测答案
+            ref {str} -- 参考答案
+        """
+        score, rec, prec = self.calc_score(cand, ref)
         self.inst_scores.append(score)
         self.r_scores.append(rec)
         self.p_scores.append(prec)
