@@ -161,10 +161,19 @@ class RCModel(nn.Module):
 			else:
 				idx = np.argpartition(-scores_flat, top_n)[0:top_n]
 				idx_sort = idx[np.argsort(-scores_flat[idx])]
+
 			s_idx, e_idx = np.unravel_index(idx_sort, scores.shape)
-			pred_s.append(s_idx[0])
-			pred_e.append(e_idx[0])
-			pred_score.append(scores_flat[idx_sort][0])
+
+			if top_n == 1:
+				pred_s.append(s_idx[0])
+				pred_e.append(e_idx[0])
+				pred_score.append(scores_flat[idx_sort][0])
+			elif top_n > 1:
+				pred_s.append(s_idx)
+				pred_e.append(e_idx)
+				pred_score.append(scores_flat[idx_sort])
+			else:
+				raise ValueError
 		del score_s, score_e
 		return pred_s, pred_e, pred_score
 
