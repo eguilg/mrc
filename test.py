@@ -44,19 +44,34 @@ slqa_plus3 = config.slqa_plus_3()
 cur_cfg = slqa_plus2
 # cur_cfg = slqa_plus3
 
+use_mrt = False
+switch = False
+use_data1 = False
 cut_ans = True
-use_rouge = False
+
+testset_roots = [
+		'./data/test/gen/test_question/samples_jieba500',
+		# './data/train/gen/train_1/samples_jieba500'
+	]
+testset_raw_path = './data/test/raw/test_question.json'
+
 if __name__ == '__main__':
 	print(cur_cfg.model_params)
-
 	model_dir = './data/models/'
-	range_result_dir = './results/range_prob'
-	submission_dir = './results/submissions'
+
+	range_result_dir = osp.join('./results/range_prob', osp.splitext(osp.basename(testset_raw_path))[0])
+	submission_dir = osp.join('./results/submissions', osp.splitext(osp.basename(testset_raw_path))[0])
+
 	mkdir_if_missing(range_result_dir)
 	mkdir_if_missing(submission_dir)
+
 	model_name = cur_cfg.name
-	if use_rouge:
+	if use_mrt:
 		model_name += '_mrt'
+	if switch:
+		model_name += '_switch'
+	if use_data1:
+		model_name += '_full_data'
 	model_path = os.path.join(model_dir, model_name + '.state')
 
 	range_result_path = os.path.join(range_result_dir, model_name + '.pkl')
@@ -64,11 +79,6 @@ if __name__ == '__main__':
 		submission_path = os.path.join(submission_dir, model_name + '_cut.json')
 	else:
 		submission_path = os.path.join(submission_dir, model_name + '.json')
-
-	testset_roots = [
-		'./data/test/gen/test_question/samples_jieba500',
-	]
-	testset_raw_path = './data/test/raw/test_question.json'
 
 	jieba_base_v = Vocab('./data/embed/base_token_vocab_jieba.pkl',
 						 './data/embed/base_token_embed_jieba.pkl')
@@ -79,14 +89,30 @@ if __name__ == '__main__':
 	jieba_flag_v = Vocab('./data/embed/base_flag_vocab_jieba.pkl',
 						 './data/embed/base_flag_embed_jieba.pkl')
 
-	pyltp_base_v = Vocab('./data/embed/base_token_vocab_pyltp.pkl',
-						 './data/embed/base_token_embed_pyltp.pkl')
-	pyltp_sgns_train_v = Vocab('./data/embed/train_sgns_vocab_pyltp.pkl',
-							   './data/embed/train_sgns_embed_pyltp.pkl')
-	pyltp_flag_v = Vocab('./data/embed/base_flag_vocab_pyltp.pkl',
-						 './data/embed/base_flag_embed_pyltp.pkl')
+	embed_lists_test = {
+		'jieba': [jieba_base_v.embeddings, jieba_sgns_v.embeddings, jieba_flag_v.embeddings],
+		'pyltp': []
+	}
+
+	embed_lists_train = {
+		'jieba': [jieba_base_v.embeddings, jieba_sgns_train_v.embeddings, jieba_flag_v.embeddings],
+		'pyltp': []
+	}
+	if switch:
+		pyltp_base_v = Vocab('./data/embed/base_token_vocab_pyltp.pkl',
+							 './data/embed/base_token_embed_pyltp.pkl')
+		pyltp_sgns_train_v = Vocab('./data/embed/train_sgns_vocab_pyltp.pkl',
+								   './data/embed/train_sgns_embed_pyltp.pkl')
+		pyltp_flag_v = Vocab('./data/embed/base_flag_vocab_pyltp.pkl',
+							 './data/embed/base_flag_embed_pyltp.pkl')
+
+		embed_lists_train = {
+			'jieba': [jieba_base_v.embeddings, jieba_sgns_train_v.embeddings, jieba_flag_v.embeddings],
+			'pyltp': [pyltp_base_v.embeddings, pyltp_sgns_train_v.embeddings, pyltp_flag_v.embeddings]
+		}
 
 	transform = MaiIndexTransform(jieba_base_v, jieba_sgns_v, jieba_flag_v)
+
 	test_data_source = MaiDirDataSource(testset_roots)
 
 	test_loader = DataLoader(
@@ -96,27 +122,17 @@ if __name__ == '__main__':
 		collate_fn=transform.batchify
 	)
 
-	embed_lists_test = {
-		'jieba': [jieba_base_v.embeddings, jieba_sgns_v.embeddings, jieba_flag_v.embeddings],
-		'pyltp': []
-	}
-
-	embed_lists_train = {
-		'jieba': [jieba_base_v.embeddings, jieba_sgns_train_v.embeddings, jieba_flag_v.embeddings],
-		'pyltp': [pyltp_base_v.embeddings, pyltp_sgns_train_v.embeddings, pyltp_flag_v.embeddings]
-	}
-
 	model_params = cur_cfg.model_params
 
-	model = RCModel(model_params, embed_lists_train, normalize=(not use_rouge))
+	model = RCModel(model_params, embed_lists_train, normalize=(not use_mrt))
 	print('loading model, ', model_path)
 
 	state = torch.load(model_path)
-	best_loss = state['best_loss']
+	best_score = state['best_score']
 	best_epoch = state['best_epoch']
 	best_step = state['best_step']
-	print('best_epoch:%2d, best_step:%5d, best_loss:%.4f' %
-		  (best_epoch, best_step, best_loss))
+	print('best_epoch:%2d, best_step:%5d, best_score:%.4f' %
+		  (best_epoch, best_step, best_score))
 	model.load_state_dict(state['best_model_state'])
 	model.reset_embeddings(embed_lists_test)
 	model = model.cuda()

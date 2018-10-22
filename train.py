@@ -52,18 +52,22 @@ cur_cfg = slqa_plus2
 
 SEED = 502
 EPOCH = 15
-jieba_only = False
-train_rouge = False
+use_mrt = False
+switch = False
 use_data1 = False
 if __name__ == '__main__':
 	print(cur_cfg.model_params)
 	model_dir = './data/models/'
 	mkdir_if_missing(model_dir)
 
-	if train_rouge:
+	if use_mrt:
 		model_name = cur_cfg.name + '_mrt'
 	else:
 		model_name = cur_cfg.name
+	if switch:
+		model_name += '_switch'
+	if use_data1:
+		model_name += '_full_data'
 	model_path = os.path.join(model_dir, model_name + '.state')
 
 	jieba_base_v = Vocab('./data/embed/base_token_vocab_jieba.pkl',
@@ -73,22 +77,14 @@ if __name__ == '__main__':
 	jieba_flag_v = Vocab('./data/embed/base_flag_vocab_jieba.pkl',
 						 './data/embed/base_flag_embed_jieba.pkl')
 
-	pyltp_base_v = Vocab('./data/embed/base_token_vocab_pyltp.pkl',
-						 './data/embed/base_token_embed_pyltp.pkl')
-	pyltp_sgns_v = Vocab('./data/embed/train_sgns_vocab_pyltp.pkl',
-						 './data/embed/train_sgns_embed_pyltp.pkl')
-	pyltp_flag_v = Vocab('./data/embed/base_flag_vocab_pyltp.pkl',
-						 './data/embed/base_flag_embed_pyltp.pkl')
-	if jieba_only:
-		transform = MaiIndexTransform(jieba_base_v, jieba_sgns_v,
-									  jieba_flag_v)  # , pyltp_base_v, pyltp_sgns_v, pyltp_flag_v)
-		trainset1_roots = [
-			'./data/train/gen/train_1/samples_jieba500'
-		]
-		trainset2_roots = [
-			'./data/train/gen/train_2/samples_jieba500'
-		]
-	else:
+	if switch:
+		pyltp_base_v = Vocab('./data/embed/base_token_vocab_pyltp.pkl',
+							 './data/embed/base_token_embed_pyltp.pkl')
+		pyltp_sgns_v = Vocab('./data/embed/train_sgns_vocab_pyltp.pkl',
+							 './data/embed/train_sgns_embed_pyltp.pkl')
+		pyltp_flag_v = Vocab('./data/embed/base_flag_vocab_pyltp.pkl',
+							 './data/embed/base_flag_embed_pyltp.pkl')
+
 		transform = MaiIndexTransform(jieba_base_v, jieba_sgns_v, jieba_flag_v, pyltp_base_v, pyltp_sgns_v,
 									  pyltp_flag_v)
 		trainset1_roots = [
@@ -100,12 +96,31 @@ if __name__ == '__main__':
 			'./data/train/gen/train_2/samples_pyltp500',
 		]
 
+		embed_lists = {
+			'jieba': [jieba_base_v.embeddings, jieba_sgns_v.embeddings, jieba_flag_v.embeddings],
+			'pyltp': [pyltp_base_v.embeddings, pyltp_sgns_v.embeddings, pyltp_flag_v.embeddings]
+		}
+	else:
+		transform = MaiIndexTransform(jieba_base_v, jieba_sgns_v, jieba_flag_v)
+		trainset1_roots = [
+			'./data/train/gen/train_1/samples_jieba500'
+		]
+		trainset2_roots = [
+			'./data/train/gen/train_2/samples_jieba500'
+		]
+
+		embed_lists = {
+			'jieba': [jieba_base_v.embeddings, jieba_sgns_v.embeddings, jieba_flag_v.embeddings],
+			'pyltp': []
+		}
+
 	train_data1_source = MaiDirDataSource(trainset1_roots)
 	train_data2_source = MaiDirDataSource(trainset2_roots)
 	train_data2_source.split(dev_split=0.1, seed=SEED)
 
 	data_for_train = train_data2_source.train
 	data_for_dev = train_data2_source.dev
+
 	if use_data1:
 		data_for_train += train_data1_source.data
 		np.random.seed(SEED)
@@ -125,17 +140,11 @@ if __name__ == '__main__':
 		collate_fn=transform.batchify
 	)
 
-	embed_lists = {
-		'jieba': [jieba_base_v.embeddings, jieba_sgns_v.embeddings, jieba_flag_v.embeddings],
-		'pyltp': [pyltp_base_v.embeddings, pyltp_sgns_v.embeddings, pyltp_flag_v.embeddings]
-		# 'pyltp': []
-	}
-
 	model_params = cur_cfg.model_params
 
-	model = RCModel(model_params, embed_lists, normalize=(not train_rouge))
+	model = RCModel(model_params, embed_lists, normalize=(not use_mrt))
 	model = model.cuda()
-	if train_rouge:
+	if use_mrt:
 		criterion_main = RougeLoss().cuda()
 	else:
 		criterion_main = PointerLoss().cuda()
@@ -196,7 +205,7 @@ if __name__ == '__main__':
 		step = 0
 		with tqdm(total=len(train_loader)) as bar:
 			for i, batch in enumerate(train_loader):
-				inputs, targets = transform.prepare_inputs(batch, train_rouge)
+				inputs, targets = transform.prepare_inputs(batch, use_mrt)
 
 				model.train()
 				optimizer.zero_grad()
@@ -268,7 +277,7 @@ if __name__ == '__main__':
 						model.eval()
 						for val_batch in dev_loader:
 							# cut, cuda
-							inputs, targets = transform.prepare_inputs(val_batch, train_rouge)
+							inputs, targets = transform.prepare_inputs(val_batch, use_mrt)
 							starts, ends, extra_targets = targets
 							_, _, _, ans_len_gt, delta_rouge = extra_targets
 
@@ -347,7 +356,7 @@ if __name__ == '__main__':
 							lr_total = 0
 							lr_num = 0
 							for param_group in optimizer.param_groups:
-								if param_group['lr'] >= 1e-4:
+								if param_group['lr'] > 5e-5:
 									param_group['lr'] *= 0.5
 								lr_total += param_group['lr']
 								lr_num += 1
