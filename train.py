@@ -18,37 +18,41 @@ from metrics import RougeL
 
 import postprocess
 
-rnet1 = config.r_net_1()
-rnet2 = config.r_net_2()
-rnet3 = config.r_net_3()
-mreader1 = config.m_reader_1()
-mreader2 = config.m_reader_2()
-mreader3 = config.m_reader_3()
 bidaf1 = config.bi_daf_1()
 bidaf2 = config.bi_daf_2()
 bidaf3 = config.bi_daf_3()
+
+rnet1 = config.r_net_1()
+rnet2 = config.r_net_2()
+rnet3 = config.r_net_3()
+
+mreader1 = config.m_reader_1()
+mreader2 = config.m_reader_2()
+mreader3 = config.m_reader_3()
+
 slqa1 = config.slqa_1()
 slqa2 = config.slqa_2()
 slqa3 = config.slqa_3()
+
 slqa_plus1 = config.slqa_plus_1()
 slqa_plus2 = config.slqa_plus_2()
 slqa_plus3 = config.slqa_plus_3()
 
-# cur_cfg = rnet1
+
+# cur_cfg = bidaf2
+cur_cfg = bidaf3
+
 # cur_cfg = rnet2
 # cur_cfg = rnet3
-# cur_cfg = mreader1
+
 # cur_cfg = mreader2
 # cur_cfg = mreader3
-# cur_cfg = bidaf1
-# cur_cfg = bidaf2
-# cur_cfg = bidaf3
+
 # cur_cfg = slqa1
 # cur_cfg = slqa2
-# cur_cfg = slqa3
+
 # cur_cfg = slqa_plus1
-cur_cfg = slqa_plus2
-# cur_cfg = slqa_plus3
+# cur_cfg = slqa_plus2
 
 SEED = 502
 EPOCH = 15

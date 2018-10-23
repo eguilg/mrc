@@ -48,7 +48,7 @@ class r_net_3(BaseConfig):
 			'backbone_type': 'r_net',
 			'ptr_type': 'ptr',
 			'dropout': 0.3,
-			'hidden_size': 75,
+			'hidden_size': 100,
 		})
 
 
@@ -65,7 +65,7 @@ class m_reader_1(BaseConfig):
 			'hidden_size': 75,
 
 			'backbone_kwarg': {'hop': 2},
-			'ptr_kwarg': {'hop': 2}
+			'ptr_kwarg': {'hop': 1}
 		})
 
 
@@ -92,7 +92,7 @@ class m_reader_3(BaseConfig):
 			'backbone_type': 'm_reader',
 			'ptr_type': 'm_ptr',
 			'dropout': 0.3,
-			'hidden_size': 75,
+			'hidden_size': 100,
 
 			'backbone_kwarg': {'hop': 2},
 			'ptr_kwarg': {'hop': 2}
@@ -109,7 +109,7 @@ class bi_daf_1(BaseConfig):
 			'backbone_type': 'bi_daf',
 			'ptr_type': 'ptr',
 			'dropout': 0.1,
-			'hidden_size': 100,
+			'hidden_size': 80,
 
 		})
 
@@ -135,7 +135,7 @@ class bi_daf_3(BaseConfig):
 			'backbone_type': 'bi_daf',
 			'ptr_type': 'ptr',
 			'dropout': 0.3,
-			'hidden_size': 100,
+			'hidden_size': 150,
 		})
 
 
@@ -149,7 +149,7 @@ class slqa_1(BaseConfig):
 			'backbone_type': 'slqa',
 			'ptr_type': 'qv_ptr',
 			'dropout': 0.2,
-			'hidden_size': 100,
+			'hidden_size': 80,
 
 			'backbone_kwarg': {'hop': 2},
 			'ptr_kwarg': {}
@@ -179,7 +179,7 @@ class slqa_3(BaseConfig):
 			'backbone_type': 'slqa',
 			'ptr_type': 'qv_ptr',
 			'dropout': 0.4,
-			'hidden_size': 100,
+			'hidden_size': 125,
 
 			'backbone_kwarg': {'hop': 2},
 			'ptr_kwarg': {}
@@ -196,7 +196,7 @@ class slqa_plus_1(BaseConfig):
 			'backbone_type': 'slqa_plus',
 			'ptr_type': 'qv_ptr',
 			'dropout': 0.2,
-			'hidden_size': 100,
+			'hidden_size': 80,
 
 			'backbone_kwarg': {'hop': 2},
 			'ptr_kwarg': {}
@@ -228,7 +228,7 @@ class slqa_plus_3(BaseConfig):
 			'backbone_type': 'slqa_plus',
 			'ptr_type': 'qv_ptr',
 			'dropout': 0.4,
-			'hidden_size': 100,
+			'hidden_size': 125,
 
 			'backbone_kwarg': {'hop': 2},
 			'ptr_kwarg': {}
