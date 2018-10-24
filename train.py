@@ -40,19 +40,21 @@ slqa_plus3 = config.slqa_plus_3()
 
 
 # cur_cfg = bidaf2
-cur_cfg = bidaf3
+# cur_cfg = bidaf3
 
 # cur_cfg = rnet2
 # cur_cfg = rnet3
 
 # cur_cfg = mreader2
-# cur_cfg = mreader3
+cur_cfg = mreader3
 
 # cur_cfg = slqa1
 # cur_cfg = slqa2
+# cur_cfg = slqa3
 
 # cur_cfg = slqa_plus1
 # cur_cfg = slqa_plus2
+# cur_cfg = slqa_plus3
 
 SEED = 502
 EPOCH = 15

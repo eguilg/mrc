@@ -149,9 +149,9 @@ class slqa_1(BaseConfig):
 			'backbone_type': 'slqa',
 			'ptr_type': 'qv_ptr',
 			'dropout': 0.2,
-			'hidden_size': 80,
+			'hidden_size': 64,
 
-			'backbone_kwarg': {'hop': 2},
+			'backbone_kwarg': {'hop': 3},
 			'ptr_kwarg': {}
 		})
 
@@ -178,7 +178,7 @@ class slqa_3(BaseConfig):
 		self.model_params.update({
 			'backbone_type': 'slqa',
 			'ptr_type': 'qv_ptr',
-			'dropout': 0.4,
+			'dropout': 0.3,
 			'hidden_size': 125,
 
 			'backbone_kwarg': {'hop': 2},
@@ -196,9 +196,9 @@ class slqa_plus_1(BaseConfig):
 			'backbone_type': 'slqa_plus',
 			'ptr_type': 'qv_ptr',
 			'dropout': 0.2,
-			'hidden_size': 80,
+			'hidden_size': 64,
 
-			'backbone_kwarg': {'hop': 2},
+			'backbone_kwarg': {'hop': 3},
 			'ptr_kwarg': {}
 		})
 
@@ -227,7 +227,7 @@ class slqa_plus_3(BaseConfig):
 		self.model_params.update({
 			'backbone_type': 'slqa_plus',
 			'ptr_type': 'qv_ptr',
-			'dropout': 0.4,
+			'dropout': 0.3,
 			'hidden_size': 125,
 
 			'backbone_kwarg': {'hop': 2},
