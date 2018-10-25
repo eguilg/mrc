@@ -46,13 +46,13 @@ slqa_plus3 = config.slqa_plus_3()
 # cur_cfg = rnet3
 
 # cur_cfg = mreader2
-cur_cfg = mreader3
+# cur_cfg = mreader3
 
 # cur_cfg = slqa1
 # cur_cfg = slqa2
 # cur_cfg = slqa3
 
-# cur_cfg = slqa_plus1
+cur_cfg = slqa_plus1
 # cur_cfg = slqa_plus2
 # cur_cfg = slqa_plus3
 
@@ -60,7 +60,7 @@ SEED = 502
 EPOCH = 15
 use_mrt = False
 switch = False
-use_data1 = False
+use_data1 = True
 if __name__ == '__main__':
 	print(cur_cfg.model_params)
 	model_dir = './data/models/'
@@ -148,7 +148,7 @@ if __name__ == '__main__':
 
 	model_params = cur_cfg.model_params
 
-	model = RCModel(model_params, embed_lists, normalize=(not use_mrt))
+	model = RCModel(model_params, embed_lists)#, normalize=(not use_mrt))
 	model = model.cuda()
 	if use_mrt:
 		criterion_main = RougeLoss().cuda()
@@ -171,11 +171,18 @@ if __name__ == '__main__':
 
 	if os.path.isfile(model_path):
 		print('load training param, ', model_path)
-		state = torch.load(model_path)
-		model.load_state_dict(state['cur_model_state'])
-		optimizer.load_state_dict(state['cur_opt_state'])
-		epoch_list = range(state['cur_epoch'] + 1, state['cur_epoch'] + 1 + EPOCH)
-		global_step = state['cur_step']
+		if use_mrt:
+			state = torch.load(model_path)
+			model.load_state_dict(state['best_model_state'])
+			optimizer.load_state_dict(state['best_opt_state'])
+			epoch_list = range(state['best_epoch'] + 1, state['best_epoch'] + 1 + EPOCH)
+			global_step = state['best_step']
+		else:
+			state = torch.load(model_path)
+			model.load_state_dict(state['cur_model_state'])
+			optimizer.load_state_dict(state['cur_opt_state'])
+			epoch_list = range(state['cur_epoch'] + 1, state['cur_epoch'] + 1 + EPOCH)
+			global_step = state['cur_step']
 	else:
 		state = None
 		epoch_list = range(EPOCH)
@@ -362,7 +369,7 @@ if __name__ == '__main__':
 							lr_total = 0
 							lr_num = 0
 							for param_group in optimizer.param_groups:
-								if param_group['lr'] > 5e-5:
+								if param_group['lr'] >= 5e-5:
 									param_group['lr'] *= 0.5
 								lr_total += param_group['lr']
 								lr_num += 1

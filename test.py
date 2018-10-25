@@ -37,7 +37,7 @@ slqa_plus3 = config.slqa_plus_3()
 # cur_cfg = bidaf3
 
 # cur_cfg = rnet2
-cur_cfg = rnet3
+# cur_cfg = rnet3
 
 # cur_cfg = mreader2
 # cur_cfg = mreader3
@@ -46,7 +46,7 @@ cur_cfg = rnet3
 # cur_cfg = slqa2
 # cur_cfg = slqa3
 
-# cur_cfg = slqa_plus1
+cur_cfg = slqa_plus1
 # cur_cfg = slqa_plus2
 # cur_cfg = slqa_plus3
 
@@ -130,7 +130,7 @@ if __name__ == '__main__':
 
 	model_params = cur_cfg.model_params
 
-	model = RCModel(model_params, embed_lists_train, normalize=(not use_mrt))
+	model = RCModel(model_params, embed_lists_train)#, normalize=(not use_mrt))
 	print('loading model, ', model_path)
 
 	state = torch.load(model_path)
