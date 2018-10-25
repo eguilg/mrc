@@ -566,6 +566,7 @@ def main(args):
 
 	for raw_file in os.listdir(raw_dir):
 		# path stuff
+		print(raw_file)
 		raw_file_path = osp.join(raw_dir, raw_file)
 		raw_file_name = osp.splitext(raw_file)[0]
 		out_dir = osp.join(gen_dir, raw_file_name)
@@ -578,7 +579,7 @@ def main(args):
 			write_json(croups, osp.join(out_dir, 'croups_' + args.method + '.json'))
 			write_json(flag_croups, osp.join(out_dir, 'flag_croups_' + args.method + '.json'))
 			for sample in samples:
-				if 'max_rouge' in sample.keys() and args.test:
+				if 'max_rouge' in sample.keys() and not args.test:
 					sample_fname = '_'.join([sample['article_id'],
 															   sample['question_id'],
 															   str(round(sample['max_rouge'], 4))]) + '.json'
