@@ -149,7 +149,7 @@ class slqa_1(BaseConfig):
 			'backbone_type': 'slqa',
 			'ptr_type': 'qv_ptr',
 			'dropout': 0.2,
-			'hidden_size': 64,
+			'hidden_size': 75,
 
 			'backbone_kwarg': {'hop': 3},
 			'ptr_kwarg': {}
@@ -196,7 +196,7 @@ class slqa_plus_1(BaseConfig):
 			'backbone_type': 'slqa_plus',
 			'ptr_type': 'qv_ptr',
 			'dropout': 0.2,
-			'hidden_size': 64,
+			'hidden_size': 75,
 
 			'backbone_kwarg': {'hop': 3},
 			'ptr_kwarg': {}
