@@ -94,6 +94,7 @@ class MaiIndexTransform(object):
 	def batchify(self, res_batch):
 		c_lens = [sample['c_len'] for sample in res_batch]
 		q_lens = [sample['q_len'] for sample in res_batch]
+
 		c_max_len = max(c_lens)
 		q_max_len = max(q_lens)
 		m = res_batch[0]['method']

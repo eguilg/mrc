@@ -40,7 +40,7 @@ slqa_plus3 = config.slqa_plus_3()
 
 
 # cur_cfg = bidaf2
-# cur_cfg = bidaf3
+cur_cfg = bidaf3
 
 # cur_cfg = rnet2
 # cur_cfg = rnet3
@@ -52,13 +52,14 @@ slqa_plus3 = config.slqa_plus_3()
 # cur_cfg = slqa2
 # cur_cfg = slqa3
 
-cur_cfg = slqa_plus1
+# cur_cfg = slqa_plus1
 # cur_cfg = slqa_plus2
 # cur_cfg = slqa_plus3
 
 SEED = 502
-EPOCH = 15
-use_mrt = False
+EPOCH = 150
+
+use_mrt = True
 switch = False
 use_data1 = True
 if __name__ == '__main__':
@@ -132,6 +133,8 @@ if __name__ == '__main__':
 		np.random.seed(SEED)
 		np.random.shuffle(data_for_train)
 
+	# data_for_train = data_for_train[:1000]
+	# data_for_dev = data_for_train[:100]
 	train_loader = DataLoader(
 		dataset=MaiDirDataset(data_for_train, transform),
 		batch_sampler=MethodBasedBatchSampler(data_for_train, batch_size=32, seed=SEED),
@@ -148,7 +151,7 @@ if __name__ == '__main__':
 
 	model_params = cur_cfg.model_params
 
-	model = RCModel(model_params, embed_lists)#, normalize=(not use_mrt))
+	model = RCModel(model_params, embed_lists, outer=use_mrt)
 	model = model.cuda()
 	if use_mrt:
 		criterion_main = RougeLoss().cuda()
@@ -194,7 +197,7 @@ if __name__ == '__main__':
 	print_every = 50
 	last_val_step = global_step
 	val_every = [1000, 700, 500, 350]
-	drop_lr_frq = [1, 2, 3, 5]
+	drop_lr_frq = 1
 	# val_every_min = 350
 	# val_every = 1000
 	val_no_improve = 0
@@ -222,15 +225,15 @@ if __name__ == '__main__':
 
 				model.train()
 				optimizer.zero_grad()
-				s_scores, e_scores, extra_outputs = model(*inputs)
+				out, extra_outputs = model(*inputs)
 				starts, ends, extra_targets = targets
 
 				q_type_gt, c_in_a_gt, q_in_a_gt, ans_len_gt, delta_rouge = extra_targets
 				q_type_pred, c_in_a_pred, q_in_a_pred, ans_len_logits = extra_outputs
 				if isinstance(criterion_main, PointerLoss):
-					loss_main = criterion_main(s_scores, e_scores, starts, ends)
+					loss_main = criterion_main(*out, starts, ends)
 				elif isinstance(criterion_main, RougeLoss) and delta_rouge is not None:
-					loss_main = criterion_main(s_scores, e_scores, delta_rouge)
+					loss_main = criterion_main(out, delta_rouge)
 				else:
 					raise NotImplementedError
 
@@ -242,7 +245,7 @@ if __name__ == '__main__':
 				train_loss = loss_main + 0.2 * (loss_qtype + loss_c_in_a + loss_q_in_a + loss_ans_len)
 				train_loss.backward()
 
-				# clip_grad_norm_(param_to_update, 5)
+				torch.nn.utils.clip_grad_norm_(param_to_update, 5)
 				optimizer.step()
 				ptr_loss_print += loss_main.item()
 				qtype_loss_print += loss_qtype.item()
@@ -294,23 +297,29 @@ if __name__ == '__main__':
 							starts, ends, extra_targets = targets
 							_, _, _, ans_len_gt, delta_rouge = extra_targets
 
-							s_scores, e_scores, ans_len_logits = model(*inputs)
+							out, ans_len_logits = model(*inputs)
 							ans_len_prob = F.softmax(ans_len_logits, dim=-1)
 
 							ans_len_hit = (torch.max(ans_len_prob, -1)[1] == ans_len_gt).sum().item()
-							start_hit = (torch.max(s_scores, -1)[1] == starts).sum().item()
-							end_hit = (torch.max(e_scores, -1)[1] == ends).sum().item()
+
 
 							if isinstance(criterion_main, PointerLoss):
-								val_loss = criterion_main(s_scores, e_scores, starts, ends)
+								val_loss = criterion_main(*out, starts, ends)
+								s_scores, e_scores = out
+								s_scores = s_scores.detach().cpu()
+								e_scores = e_scores.detach().cpu()
+								batch_pos1, batch_pos2, confidence = model.decode(s_scores, e_scores)
 							elif isinstance(criterion_main, RougeLoss) and delta_rouge is not None:
-								val_loss = criterion_main(s_scores, e_scores, delta_rouge)
+								val_loss = criterion_main(out, delta_rouge)
+								out = out.detach().cpu()
+								batch_pos1, batch_pos2, confidence = model.decode_outer(out)
 							else:
 								raise NotImplementedError
+							starts = starts.detach().cpu()
+							ends = ends.detach().cpu()
+							start_hit = (torch.LongTensor(batch_pos1) == starts).sum().item()
+							end_hit = (torch.LongTensor(batch_pos2) == ends).sum().item()
 
-							s_scores = s_scores.detach().cpu()
-							e_scores = e_scores.detach().cpu()
-							batch_pos1, batch_pos2, confidence = model.decode(s_scores, e_scores)
 							for pos1, pos2, sample in zip(batch_pos1, batch_pos2, val_batch['raw']):
 								gt_ans = sample['answer']
 								pred_ans = postprocess.gen_ans(pos1, pos2, sample)
@@ -363,13 +372,14 @@ if __name__ == '__main__':
 					else:
 						val_no_improve += 1
 
-						if val_no_improve >= drop_lr_frq[grade]:
+						if val_no_improve >= int(drop_lr_frq):
 							print('dropping lr...')
 							val_no_improve = 0
+							drop_lr_frq += 1.4
 							lr_total = 0
 							lr_num = 0
 							for param_group in optimizer.param_groups:
-								if param_group['lr'] >= 5e-5:
+								if param_group['lr'] > 2e-5:
 									param_group['lr'] *= 0.5
 								lr_total += param_group['lr']
 								lr_num += 1

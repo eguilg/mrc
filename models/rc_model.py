@@ -3,13 +3,13 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from . import BACKBONE_TYPES, RNN_TYPES, POINTER_TYPES
+from . import BACKBONE_TYPES, RNN_TYPES, POINTER_TYPES, OuterNet
 from .layers.embedding_layer import MergedEmbedding
 
 
 class RCModel(nn.Module):
 
-	def __init__(self, param_dict, embed_lists, normalize=True):
+	def __init__(self, param_dict, embed_lists, normalize=True, outer=True):
 		super(RCModel, self).__init__()
 		# Store config
 		self.param_dict = param_dict
@@ -19,6 +19,7 @@ class RCModel(nn.Module):
 		self.dropout = param_dict['dropout']
 		self.backbone_kwarg = param_dict['backbone_kwarg']
 		self.ptr_kwarg = param_dict['ptr_kwarg']
+		self.outer = outer
 
 		try:
 			self.backbone_type = BACKBONE_TYPES[param_dict['backbone_type']]
@@ -50,14 +51,25 @@ class RCModel(nn.Module):
 			**self.backbone_kwarg
 		)
 
-		self.ptr_net = self.ptr_type(
-			x_size=self.backbone.out1_dim,
-			y_size=self.backbone.out2_dim,
-			hidden_size=self.hidden_size,
-			dropout_rate=self.dropout,
-			normalize=normalize,
-			**self.ptr_kwarg
-		)
+		if outer:
+			self.outer_net = OuterNet(
+				x_size=self.backbone.out1_dim,
+				y_size=self.backbone.out2_dim,
+				hidden_size=self.hidden_size,
+				dropout_rate=self.dropout,
+				normalize=normalize,
+				# **self.ptr_kwarg
+			)
+
+		else:
+			self.outer_net = self.ptr_type(
+				x_size=self.backbone.out1_dim,
+				y_size=self.backbone.out2_dim,
+				hidden_size=self.hidden_size,
+				dropout_rate=self.dropout,
+				normalize=normalize,
+				**self.ptr_kwarg
+			)
 
 		self.qtype_net = nn.Linear(
 			in_features=2 * self.hidden_size,
@@ -118,7 +130,7 @@ class RCModel(nn.Module):
 
 		c, q = self.backbone(c, x1_mask, q, x2_mask)
 
-		score_s, score_e = self.ptr_net(c, q, x1_mask, x2_mask)
+		out = self.outer_net(c, q, x1_mask, x2_mask)
 
 		ans_len_logits = self.ans_len_net(torch.max(torch.cat([c, q], 1), dim=1)[0])
 
@@ -126,9 +138,9 @@ class RCModel(nn.Module):
 			qtype_vec = self.qtype_net(q[:, -1, :])
 			c_in_a = self.isin_net(c).squeeze(-1)
 			q_in_a = self.isin_net(q).squeeze(-1)
-			return score_s, score_e, (qtype_vec, c_in_a, q_in_a, ans_len_logits)
+			return out, (qtype_vec, c_in_a, q_in_a, ans_len_logits)
 		else:
-			return score_s, score_e, ans_len_logits
+			return out, ans_len_logits
 
 	@staticmethod
 	def decode(score_s, score_e, top_n=1, max_len=None):
@@ -175,6 +187,53 @@ class RCModel(nn.Module):
 			else:
 				raise ValueError
 		del score_s, score_e
+		return pred_s, pred_e, pred_score
+
+	@staticmethod
+	def decode_outer(outer, top_n=1, max_len=None):
+		"""Take argmax of constrained score_s * score_e.
+
+		Args:
+			score_s: independent start predictions
+			score_e: independent end predictions
+			top_n: number of top scored pairs to take
+			max_len: max span length to consider
+		"""
+		pred_s = []
+		pred_e = []
+		pred_score = []
+		max_len = max_len or outer.size(1)
+		for i in range(outer.size(0)):
+			# Outer product of scores to get full p_s * p_e matrix
+			scores = outer[i]
+
+			# Zero out negative length and over-length span scores
+			scores.triu_().tril_(max_len - 1)
+
+			# Take argmax or top n
+			scores = scores.numpy()
+			scores_flat = scores.flatten()
+			if top_n == 1:
+				idx_sort = [np.argmax(scores_flat)]
+			elif len(scores_flat) < top_n:
+				idx_sort = np.argsort(-scores_flat)
+			else:
+				idx = np.argpartition(-scores_flat, top_n)[0:top_n]
+				idx_sort = idx[np.argsort(-scores_flat[idx])]
+
+			s_idx, e_idx = np.unravel_index(idx_sort, scores.shape)
+
+			if top_n == 1:
+				pred_s.append(s_idx[0])
+				pred_e.append(e_idx[0])
+				pred_score.append(scores_flat[idx_sort][0])
+			elif top_n > 1:
+				pred_s.append(s_idx)
+				pred_e.append(e_idx)
+				pred_score.append(scores_flat[idx_sort])
+			else:
+				raise ValueError
+		del outer
 		return pred_s, pred_e, pred_score
 
 	@staticmethod
