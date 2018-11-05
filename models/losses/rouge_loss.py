@@ -81,9 +81,9 @@ class RougeLoss(nn.Module):
 			# ranking_loss = ranking_loss.mean()
 
 			if total_loss is None:
-				total_loss = ranking_loss + margin_loss + distance
+				total_loss = ranking_loss + 2 * margin_loss + 2 * distance
 			else:
-				total_loss += ranking_loss + margin_loss + distance
+				total_loss += ranking_loss + 2 * margin_loss + 2 * distance
 		return total_loss / delta_rouge.size(0)
 
 	def forward(self, out_matix, delta_rouge):

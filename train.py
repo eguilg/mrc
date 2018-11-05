@@ -1,4 +1,5 @@
 import multiprocessing as mp
+import matplotlib.pyplot as plt
 import time
 
 import numpy as np
@@ -38,7 +39,6 @@ slqa_plus1 = config.slqa_plus_1()
 slqa_plus2 = config.slqa_plus_2()
 slqa_plus3 = config.slqa_plus_3()
 
-
 # cur_cfg = bidaf2
 cur_cfg = bidaf3
 
@@ -58,10 +58,13 @@ cur_cfg = bidaf3
 
 SEED = 502
 EPOCH = 150
+BATCH_SIZE = 21
 
 use_mrt = True
 switch = False
-use_data1 = True
+use_data1 = False
+show_plt = True
+
 if __name__ == '__main__':
 	print(cur_cfg.model_params)
 	model_dir = './data/models/'
@@ -137,14 +140,14 @@ if __name__ == '__main__':
 	# data_for_dev = data_for_train[:100]
 	train_loader = DataLoader(
 		dataset=MaiDirDataset(data_for_train, transform),
-		batch_sampler=MethodBasedBatchSampler(data_for_train, batch_size=32, seed=SEED),
+		batch_sampler=MethodBasedBatchSampler(data_for_train, batch_size=BATCH_SIZE, seed=SEED),
 		num_workers=mp.cpu_count(),
 		collate_fn=transform.batchify
 	)
 
 	dev_loader = DataLoader(
 		dataset=MaiDirDataset(data_for_dev, transform),
-		batch_sampler=MethodBasedBatchSampler(data_for_dev, batch_size=32, shuffle=False),
+		batch_sampler=MethodBasedBatchSampler(data_for_dev, batch_size=BATCH_SIZE, shuffle=False),
 		num_workers=mp.cpu_count(),
 		collate_fn=transform.batchify
 	)
@@ -279,6 +282,7 @@ if __name__ == '__main__':
 					ans_len_loss_print = 0
 
 				if global_step - last_val_step == val_every[grade]:
+					# evaluate(show_plt=False)
 					print('-' * 80)
 					print('Evaluating...')
 					last_val_step = global_step
@@ -302,12 +306,13 @@ if __name__ == '__main__':
 
 							ans_len_hit = (torch.max(ans_len_prob, -1)[1] == ans_len_gt).sum().item()
 
-
 							if isinstance(criterion_main, PointerLoss):
 								val_loss = criterion_main(*out, starts, ends)
 								s_scores, e_scores = out
+								out = torch.bmm(s_scores.unsqueeze(-1), e_scores.unsqueeze(1))
 								s_scores = s_scores.detach().cpu()
 								e_scores = e_scores.detach().cpu()
+								out = out.detach().cpu()
 								batch_pos1, batch_pos2, confidence = model.decode(s_scores, e_scores)
 							elif isinstance(criterion_main, RougeLoss) and delta_rouge is not None:
 								val_loss = criterion_main(out, delta_rouge)
@@ -319,6 +324,28 @@ if __name__ == '__main__':
 							ends = ends.detach().cpu()
 							start_hit = (torch.LongTensor(batch_pos1) == starts).sum().item()
 							end_hit = (torch.LongTensor(batch_pos2) == ends).sum().item()
+
+							if show_plt and val_step % 1000 == 0:
+								for o, sample in zip(out, val_batch['raw']):
+									dim = o.size(0)
+									rouge_matrix = np.zeros([dim, dim])
+									starts = sample['delta_token_starts']
+									ends = sample['delta_token_ends']
+									rouges = sample['delta_rouges']
+
+									for s, e, r in zip(starts, ends, rouges):
+										rouge_matrix[s, e] = r
+
+									plt.subplot(121)
+									plt.imshow(rouge_matrix, cmap=plt.cm.hot, vmin=0, vmax=1)
+									plt.title('Gt Rouge')
+									plt.colorbar()
+
+									plt.subplot(122)
+									plt.imshow(o, cmap=plt.cm.hot, vmin=0, vmax=1)
+									plt.title('Pr Rouge')
+									plt.colorbar()
+									plt.show()
 
 							for pos1, pos2, sample in zip(batch_pos1, batch_pos2, val_batch['raw']):
 								gt_ans = sample['answer']
@@ -391,6 +418,5 @@ if __name__ == '__main__':
 					state['val_loss'] = val_loss_total / val_step
 					state['val_score'] = rouge_score
 					state['cur_step'] = global_step
-
 
 					torch.save(state, model_path)

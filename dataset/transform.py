@@ -95,7 +95,7 @@ class MaiIndexTransform(object):
 		c_lens = [sample['c_len'] for sample in res_batch]
 		q_lens = [sample['q_len'] for sample in res_batch]
 
-		c_max_len = max(c_lens)
+		c_max_len = 32 * (max(c_lens) // 32) + 32
 		q_max_len = max(q_lens)
 		m = res_batch[0]['method']
 		batch = {

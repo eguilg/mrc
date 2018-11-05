@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from ptsemseg.models.unet import unet
 from torch.autograd import Variable
 
 
@@ -17,6 +18,8 @@ class OuterNet(nn.Module):
 
 		self.dropout = nn.Dropout(p=self.dropout_rate)
 
+		self.unet = unet(feature_scale=8, in_channels=1, n_classes=1)
+
 	def forward(self, x, y, x_mask, y_mask):
 
 		# gamma = self.w_q(y)  # b, J, x_size
@@ -30,7 +33,12 @@ class OuterNet(nn.Module):
 		e = self.dropout(self.w_e(x))  # b, T, hidden
 
 		outer = torch.bmm(s, e.transpose(1, 2))  # b, T, T
+		outer = outer.unsqueeze(1)
 
+		outer = self.unet(outer)
+
+		outer = outer.squeeze(1)
+		# print(outer.size())
 		x_len = x.size(1)
 		xx_mask = x_mask.unsqueeze(2).expand(-1, -1, x_len)
 		outer.masked_fill_(xx_mask, -float('inf'))

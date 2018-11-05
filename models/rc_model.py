@@ -52,7 +52,7 @@ class RCModel(nn.Module):
 		)
 
 		if outer:
-			self.outer_net = OuterNet(
+			self.out_layer = OuterNet(
 				x_size=self.backbone.out1_dim,
 				y_size=self.backbone.out2_dim,
 				hidden_size=self.hidden_size,
@@ -62,7 +62,7 @@ class RCModel(nn.Module):
 			)
 
 		else:
-			self.outer_net = self.ptr_type(
+			self.out_layer = self.ptr_type(
 				x_size=self.backbone.out1_dim,
 				y_size=self.backbone.out2_dim,
 				hidden_size=self.hidden_size,
@@ -70,6 +70,7 @@ class RCModel(nn.Module):
 				normalize=normalize,
 				**self.ptr_kwarg
 			)
+			# self.ptr_net = self.outer_net
 
 		self.qtype_net = nn.Linear(
 			in_features=2 * self.hidden_size,
@@ -130,7 +131,7 @@ class RCModel(nn.Module):
 
 		c, q = self.backbone(c, x1_mask, q, x2_mask)
 
-		out = self.outer_net(c, q, x1_mask, x2_mask)
+		out = self.out_layer(c, q, x1_mask, x2_mask)
 
 		ans_len_logits = self.ans_len_net(torch.max(torch.cat([c, q], 1), dim=1)[0])
 
