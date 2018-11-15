@@ -88,7 +88,7 @@ class MaiWindowsDataset(Dataset):
 
     self.use_rouge = use_rouge
     with open(data_path, encoding='utf-8') as f:
-      self.data_source=json.load(f)
+      self.data_source=json.load(f)[:1000]
 
     self.transformed_data = {}
     self.transform = transform

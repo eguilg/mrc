@@ -14,6 +14,8 @@ from dataset import (MaiDirDataSource, MaiDirDataset, Vocab,
                      MaiIndexTransform, MethodBasedBatchSampler)
 from dataset import MaiWindowsDataset
 from models.losses import PointerLoss, RougeLoss
+from models.losses.obj_detection_loss import ObjDetectionLoss
+
 from models.rc_model import RCModel
 from utils.osutils import *
 from metrics import RougeL
@@ -65,6 +67,8 @@ use_mrt = True
 switch = False
 use_data1 = False
 show_plt = False
+obj_detection = True
+on_windows = True
 
 if __name__ == '__main__':
   print(cur_cfg.model_params)
@@ -75,6 +79,11 @@ if __name__ == '__main__':
     model_name = cur_cfg.name + '_mrt'
   else:
     model_name = cur_cfg.name
+
+  if obj_detection:
+    # FIXME: 强制刷新掉model name 后期应该改造成mode
+    model_name = cur_cfg.name + '_obj'
+
   if switch:
     model_name += '_switch'
   if use_data1:
@@ -125,7 +134,13 @@ if __name__ == '__main__':
       'jieba': [jieba_base_v.embeddings, jieba_sgns_v.embeddings, jieba_flag_v.embeddings],
       'pyltp': []
     }
-  on_windows = True
+  if obj_detection:
+    from dataset.transform import MaiDetectionTransform
+
+    ## 默认不开switch
+    assert not switch
+    transform = MaiDetectionTransform(jieba_base_v, jieba_sgns_v, jieba_flag_v, B=1, S=16)
+
   if not on_windows:
     train_data1_source = MaiDirDataSource(trainset1_roots)
     train_data2_source = MaiDirDataSource(trainset2_roots)
@@ -144,7 +159,7 @@ if __name__ == '__main__':
 
     num_workers = max(4, mp.cpu_count())
   else:
-    BATCH_SIZE=12
+    BATCH_SIZE = 12
     # train_dataset=MaiWindowsDataset('data/train/gen/test-question.first1000/total_samples_jieba500.json', transform, use_mrt)
     train_dataset = MaiWindowsDataset('data/train/gen/test-question.first1000/total_samples_jieba500.json', transform,
                                       use_mrt)
@@ -172,12 +187,16 @@ if __name__ == '__main__':
 
   model_params = cur_cfg.model_params
 
-  model = RCModel(model_params, embed_lists, outer=use_mrt)
+  model = RCModel(model_params, embed_lists, mode='obj_detection')
   model = model.cuda()
   if use_mrt:
     criterion_main = RougeLoss().cuda()
   else:
     criterion_main = PointerLoss().cuda()
+
+  if obj_detection:
+    criterion_main = ObjDetectionLoss(B=transform.B, S=transform.S, dynamic_score=False).cuda()
+
   criterion_extra = nn.MultiLabelSoftMarginLoss().cuda()
 
   param_to_update = list(filter(lambda p: p.requires_grad, model.parameters()))
@@ -247,7 +266,10 @@ if __name__ == '__main__':
         model.train()
         optimizer.zero_grad()
         out, extra_outputs = model(*inputs)
-        starts, ends, extra_targets = targets
+        if obj_detection:
+          widths, centers, scores, extra_targets = targets
+        else:
+          starts, ends, extra_targets = targets
 
         q_type_gt, c_in_a_gt, q_in_a_gt, ans_len_gt, delta_rouge = extra_targets
         q_type_pred, c_in_a_pred, q_in_a_pred, ans_len_logits = extra_outputs
@@ -255,6 +277,9 @@ if __name__ == '__main__':
           loss_main = criterion_main(*out, starts, ends)
         elif isinstance(criterion_main, RougeLoss) and delta_rouge is not None:
           loss_main = criterion_main(out, delta_rouge)
+        elif isinstance(criterion_main, ObjDetectionLoss) and delta_rouge is not None:
+          # fixme:
+          loss_main = criterion_main(out, widths, centers, scores)
         else:
           raise NotImplementedError
 
@@ -300,6 +325,19 @@ if __name__ == '__main__':
           ans_len_loss_print = 0
 
         if global_step - last_val_step == val_every[grade]:
+          if obj_detection:
+            state = {}
+            # FIXME: 目标检测的eval还没写，所以临时跳过先
+            state['cur_model_state'] = model.state_dict()
+            state['cur_opt_state'] = optimizer.state_dict()
+            state['cur_epoch'] = e
+            state['val_loss'] = val_loss_total / val_step
+            state['val_score'] = rouge_score
+            state['cur_step'] = global_step
+
+            torch.save(state, model_path)
+            continue
+
           # evaluate(show_plt=False)
           print('-' * 80)
           print('Evaluating...')
