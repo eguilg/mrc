@@ -5,50 +5,58 @@ from ptsemseg.models.unet import unet
 from torch.autograd import Variable
 
 
-class SimpleConvBlock(nn.Module):
+class SimpleConv1d(nn.Module):
   def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=1):
-    super(SimpleConvBlock, self).__init__()
+    super(SimpleConv1d, self).__init__()
 
     self.conv1 = nn.Sequential(
       nn.Conv1d(in_channels, out_channels, kernel_size, stride, padding),
       nn.BatchNorm1d(out_channels),
       nn.ReLU(),
     )
-    self.conv2 = nn.Sequential(
-      nn.Conv1d(out_channels, out_channels, kernel_size, stride, padding),
-      nn.BatchNorm1d(out_channels),
-      nn.ReLU(),
-    )
 
   def forward(self, inputs):
     outputs = self.conv1(inputs)
-    outputs = self.conv2(outputs)
     return outputs
 
 
-class InceptionConvBlock(nn.Module):
+class VGGConv1d(nn.Module):
+  def __init__(self, in_channels, out_channels, times=2, kernel_size=3, stride=1, padding=1):
+    super(VGGConv1d, self).__init__()
+
+    layers = []
+    for time in range(times):
+      if time == 0:
+        layers.append(nn.Sequential(
+          nn.Conv1d(in_channels, out_channels, kernel_size, stride, padding),
+          nn.BatchNorm1d(out_channels),
+          nn.ReLU(),
+        ))
+      else:
+        layers.append(nn.Sequential(
+          nn.Conv1d(out_channels, out_channels, kernel_size, stride, padding),
+          nn.BatchNorm1d(out_channels),
+          nn.ReLU(),
+        ))
+
+    self.conv = nn.Sequential(*layers)
+
+  def forward(self, inputs):
+    outputs = self.conv(inputs)
+    return outputs
+
+
+class InceptionConv1dBlock(nn.Module):
   def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=1):
-    super(InceptionConvBlock, self).__init__()
+    super(InceptionConv1dBlock, self).__init__()
 
     self.conv1 = nn.Sequential(
-      nn.Conv1d(in_channels, out_channels // 4, 1, 1, 0),
-      nn.BatchNorm1d(out_channels),
-      nn.ReLU(),
-    )
-
-    self.conv2 = nn.Sequential(
-      nn.Conv1d(out_channels // 4, out_channels // 2, kernel_size, 1, padding),
-      nn.BatchNorm1d(out_channels),
+      nn.Conv1d(in_channels, out_channels // 2, 1, 1, 0),
+      nn.BatchNorm1d(out_channels // 2),
       nn.ReLU(),
     )
     self.conv2 = nn.Sequential(
-      nn.Conv1d(out_channels // 4, out_channels // 2, kernel_size, 1, padding),
-      nn.BatchNorm1d(out_channels),
-      nn.ReLU(),
-    )
-
-    self.conv2 = nn.Sequential(
-      nn.Conv1d(out_channels, out_channels, kernel_size, stride, padding),
+      nn.Conv1d(out_channels // 2, out_channels, kernel_size, stride, padding),
       nn.BatchNorm1d(out_channels),
       nn.ReLU(),
     )
@@ -56,28 +64,64 @@ class InceptionConvBlock(nn.Module):
   def forward(self, inputs):
     outputs = self.conv1(inputs)
     outputs = self.conv2(outputs)
+
     return outputs
 
 
-class SimpleDetectionNet(nn.Module):
-  def __init__(self, in_channels, B=1, S=16, feature_scale=4):
-    """
+class InceptionConv1d(nn.Module):
+  def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=1, times=1):
+    super(InceptionConv1d, self).__init__()
 
-    :param in_channels: hidden_size
-    :param feature_scale:
-    """
+    inception_layers = []
+    for time in range(times):
+      if time == 0:
+        inception_layers.append(InceptionConv1dBlock(in_channels, out_channels // 2, kernel_size, stride, padding))
+      else:
+        inception_layers.append(
+          InceptionConv1dBlock(out_channels // 2, out_channels // 2, kernel_size, stride, padding))
+
+    self.inception_conv = nn.Sequential(*inception_layers)
+
+    self.conv1 = nn.Sequential(
+      nn.Conv1d(in_channels, out_channels, kernel_size, stride, padding),
+      nn.BatchNorm1d(out_channels),
+      nn.ReLU(),
+    )
+
+  def forward(self, inputs):
+    outputs = self.inception_conv(inputs)
+    outputs = self.conv1(outputs)
+    return outputs
+
+
+class VGGNet1d(nn.Module):
+  def __init__(self, in_channels, filters):
     super().__init__()
-    self.B = B
-    self.S = S
+    layers = []
+    for i in range(len(filters)):
+      if i == 0:
+        layers.append(VGGConv1d(in_channels, filters[0], times=2, stride=1))
+      elif i < 2:
+        layers.append(VGGConv1d(filters[i - 1], filters[i], times=2))
+      else:
+        layers.append(VGGConv1d(filters[i - 1], filters[i], times=3))
+      layers.append(nn.MaxPool1d(kernel_size=2))
 
-    filters = [64, 128, 256, 512, 1024]
-    filters = [int(x / feature_scale) for x in filters]
+    self.conv_net = nn.Sequential(*layers)
 
-    # 输入=[batch_size,hidden_size,n],
-    self.conv1 = SimpleConvBlock(in_channels, filters[0], kernel_size=7, padding=7 // 2, stride=2)  # 256
+  def forward(self, x):
+    net = self.conv_net(x)
+
+    return net
+
+
+class SimpleNet1d(nn.Module):
+  def __init__(self, in_channels, filters):
+    super().__init__()
+    self.conv1 = VGGConv1d(in_channels, filters[0], kernel_size=7, padding=3, stride=2)  # 256
     self.maxpool1 = nn.MaxPool1d(kernel_size=2)  # 128
 
-    self.conv2 = SimpleConvBlock(filters[0], filters[1], kernel_size=3, padding=3 // 2)  # 64
+    self.conv2 = VGGConv1d(filters[0], filters[1], kernel_size=3, padding=1)  # 64
     self.maxpool2 = nn.MaxPool1d(kernel_size=2)  # 32
 
     # FIXME:  for还不会
@@ -100,13 +144,6 @@ class SimpleDetectionNet(nn.Module):
     )
     self.maxpool3 = nn.MaxPool1d(kernel_size=2)  # 16
 
-    self.fc = nn.Sequential(
-      nn.Linear(filters[2] * S, filters[-1]),
-      nn.ReLU(True),
-      nn.Dropout(),
-      nn.Linear(filters[-1], S * B * 3),
-    )
-
   def forward(self, x):
     net = self.conv1(x)
     net = self.maxpool1(net)
@@ -116,6 +153,40 @@ class SimpleDetectionNet(nn.Module):
 
     net = self.conv3(net)
     net = self.maxpool3(net)
+
+
+    return net
+
+
+class SimpleDetectionNet(nn.Module):
+  def __init__(self, in_channels, B=1, S=16, feature_scale=4):
+    """
+
+    :param in_channels: hidden_size
+    :param feature_scale:
+    """
+    super().__init__()
+    self.B = B
+    self.S = S
+
+    filters = [64, 128, 256, 512, 1024]
+    filters = [int(x / feature_scale) for x in filters]
+
+    # self.conv_net = VGGNet1d(in_channels, filters)  # 收敛的速度很慢，不知道是不是因为网络太大了
+
+    filters=filters[:3]
+    self.conv_net = SimpleNet1d(in_channels, filters)
+
+    # TODO: 把特征抽取网络和fc网络隔离开来
+    self.fc = nn.Sequential(
+      nn.Linear(filters[-1] * S, 256),
+      nn.ReLU(True),
+      nn.Dropout(),
+      nn.Linear(256, S * B * 3),
+    )
+
+  def forward(self, x):
+    net = self.conv_net(x)
 
     net = self.fc(net.view(net.size(0), -1))
 
@@ -134,24 +205,8 @@ class ObjDetectionNet(nn.Module):
 
     self.dropout = nn.Dropout(p=self.dropout_rate)
 
-    self.detection_net = SimpleDetectionNet(hidden_size * 2, feature_scale=8)
+    self.detection_net = SimpleDetectionNet(hidden_size * 2, feature_scale=4)
 
   def forward(self, x, y, x_mask, y_mask):
     outer = self.detection_net(x.transpose(1, 2))
-    # s = self.dropout(self.w_s(x))  # b, T, hidden
-    # e = self.dropout(self.w_e(x))  # b, T, hidden
-    #
-    # outer = torch.bmm(s, e.transpose(1, 2))  # b, T, T
-    # outer = outer.unsqueeze(1)
-    #
-    # outer = self.unet(outer)
-    #
-    # outer = outer.squeeze(1)
-    # # print(outer.size())
-    # x_len = x.size(1)
-    # xx_mask = x_mask.unsqueeze(2).expand(-1, -1, x_len)
-    # outer.masked_fill_(xx_mask, -float('inf'))
-    # outer.masked_fill_(xx_mask.transpose(1, 2), -float('inf'))
-    #
-    # outer = F.sigmoid(outer)
     return outer

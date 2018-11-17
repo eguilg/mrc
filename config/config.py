@@ -1,3 +1,8 @@
+
+MODE_PTR = 'MODE_PTR'
+MODE_MRT = 'MODE_MRT'
+MODE_OBJ = 'MODE_OBJ'
+
 class BaseConfig:
 	def __init__(self):
 		self.model_params = {

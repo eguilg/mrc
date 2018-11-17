@@ -72,10 +72,7 @@ show_plt = False
 # obj_detection = True
 on_windows = True
 
-MODE_PTR = 'MODE_PTR'
-MODE_MRT = 'MODE_MRT'
-MODE_OBJ = 'MODE_OBJ'
-
+from config.config import MODE_OBJ,MODE_MRT,MODE_PTR
 mode = MODE_OBJ
 
 if __name__ == '__main__':
@@ -194,7 +191,7 @@ if __name__ == '__main__':
 
   model_params = cur_cfg.model_params
 
-  model = RCModel(model_params, embed_lists, mode='obj_detection')
+  model = RCModel(model_params, embed_lists, mode=mode)
   model = model.cuda()
   if mode == MODE_MRT:
     criterion_main = RougeLoss().cuda()
@@ -220,18 +217,21 @@ if __name__ == '__main__':
 
   if os.path.isfile(model_path):
     print('load training param, ', model_path)
-    if mode == 'mrt':
+    if mode == MODE_MRT:
       state = torch.load(model_path)
       model.load_state_dict(state['best_model_state'])
       optimizer.load_state_dict(state['best_opt_state'])
       epoch_list = range(state['best_epoch'] + 1, state['best_epoch'] + 1 + EPOCH)
       global_step = state['best_step']
-    elif mode == 'obj_detection':
+    elif mode == MODE_OBJ:
       state = torch.load(model_path)
       model.load_state_dict(state['cur_model_state'])
       optimizer.load_state_dict(state['cur_opt_state'])
       epoch_list = range(state['cur_epoch'] + 1, state['cur_epoch'] + 1 + EPOCH)
       global_step = state['cur_step']
+
+      if 'best_score' not in state:
+        state['best_score']=0
     else:
       state = torch.load(model_path)
       model.load_state_dict(state['cur_model_state'])
@@ -248,7 +248,10 @@ if __name__ == '__main__':
   grade = 0
   print_every = 50
   last_val_step = global_step
-  val_every = [1000, 700, 500, 350]
+  if on_windows:
+    val_every = [200, 70, 50, 35]
+  else:
+    val_every = [1000, 700, 500, 350]
   drop_lr_frq = 1
   # val_every_min = 350
   # val_every = 1000
@@ -259,7 +262,7 @@ if __name__ == '__main__':
   q_in_a_loss_print = 0
   ans_len_loss_print = 0
 
-  if state is not None and 'best_score' in state:
+  if state is not None:
     if state['best_score'] > 0.90:
       grade = 3
     elif state['best_score'] > 0.89:
@@ -345,9 +348,6 @@ if __name__ == '__main__':
           ans_len_loss_print = 0
 
         if global_step - last_val_step == val_every[grade]:
-          if mode == MODE_OBJ:
-            continue
-
           # evaluate(show_plt=False)
           print('-' * 80)
           print('Evaluating...')
@@ -362,9 +362,16 @@ if __name__ == '__main__':
           with torch.no_grad():
             model.eval()
             for val_batch in dev_loader:
+
               # cut, cuda
-              inputs, targets = transform.prepare_inputs(val_batch, mode != MODE_PTR)
-              starts, ends, extra_targets = targets
+
+              if mode == MODE_OBJ:
+                inputs, targets = transform.prepare_inputs(val_batch, mode != MODE_PTR, obj_eval=mode == MODE_OBJ)
+                starts, ends, widths, centers, scores, extra_targets = targets
+              else:
+                inputs, targets = transform.prepare_inputs(val_batch, mode != MODE_PTR)
+                starts, ends, extra_targets = targets
+
               _, _, _, ans_len_gt, delta_rouge = extra_targets
 
               out, ans_len_logits = model(*inputs)
@@ -384,6 +391,14 @@ if __name__ == '__main__':
                 val_loss = criterion_main(out, delta_rouge)
                 out = out.detach().cpu()
                 batch_pos1, batch_pos2, confidence = model.decode_outer(out)
+              elif isinstance(criterion_main, ObjDetectionLoss):
+                val_loss = criterion_main(out, widths, centers, scores)
+                out = out.detach().cpu()
+                batch_pos1, batch_pos2, confidence = model.decode_obj_detection(out,
+                                                                                B=transform.B,
+                                                                                S=transform.S,
+                                                                                max_len=512)  ## FIXME: 临时hard coding成512
+
               else:
                 raise NotImplementedError
               starts = starts.detach().cpu()
@@ -439,10 +454,11 @@ if __name__ == '__main__':
           print('RougeL: {: .4f}'.format(rouge_score))
 
           print('-' * 80)
-          if os.path.isfile(model_path):
-            state = torch.load(model_path)
-          else:
+          if state is None:
             state = {}
+          # if os.path.isfile(model_path):
+          #   state = torch.load(model_path)
+          # else:
 
           if state == {} or state['best_score'] < rouge_score:
             state['best_model_state'] = model.state_dict()
@@ -478,6 +494,7 @@ if __name__ == '__main__':
                 lr_num += 1
               print('curr avg lr is {}'.format(lr_total / lr_num))
 
+          print('Saving into', model_path)
           state['cur_model_state'] = model.state_dict()
           state['cur_opt_state'] = optimizer.state_dict()
           state['cur_epoch'] = e
@@ -487,14 +504,3 @@ if __name__ == '__main__':
 
           torch.save(state, model_path)
 
-    print('Saving into', model_path)
-    state = {}
-    # FIXME: 目标检测的eval还没写，所以临时跳过先
-    state['cur_model_state'] = model.state_dict()
-    state['cur_opt_state'] = optimizer.state_dict()
-    state['cur_epoch'] = e
-    # state['val_loss'] = val_loss_total / val_step
-    # state['val_score'] = rouge_score
-    state['cur_step'] = global_step
-
-    torch.save(state, model_path)

@@ -53,9 +53,13 @@ class ObjDetectionLoss(nn.Module):
     neg_loss_width = torch.pow(neg_mask * (out[:, :, 1] - width), 2)
     neg_loss_prob = torch.pow(neg_mask * (out[:, :, 2] - score), 2)
 
+    ## 所有参数都带上
+    # loss = self.coord * (loss_center + loss_width + loss_prob) + \
+    #        self.noobj * (neg_loss_center + neg_loss_width + neg_loss_prob)
+
+    ## 不拟合非responsible的width和center
     loss = self.coord * (loss_center + loss_width + loss_prob) + \
-           self.noobj * (neg_loss_center + neg_loss_width + neg_loss_prob)
+           self.noobj * (neg_loss_prob)
 
     loss = loss.sum(-1).mean()
-    # Loss: Main 0.0594
     return loss

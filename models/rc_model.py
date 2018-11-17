@@ -6,11 +6,11 @@ import torch.nn as nn
 from . import BACKBONE_TYPES, RNN_TYPES, POINTER_TYPES, OuterNet
 from models.layers.obj_detection_layer import ObjDetectionNet
 from .layers.embedding_layer import MergedEmbedding
+from config.config import MODE_OBJ, MODE_MRT, MODE_PTR
 
 
 class RCModel(nn.Module):
-
-  def __init__(self, param_dict, embed_lists, normalize=True, mode='mrt'):
+  def __init__(self, param_dict, embed_lists, normalize=True, mode=MODE_PTR):
     super(RCModel, self).__init__()
     # Store config
     self.param_dict = param_dict
@@ -52,7 +52,7 @@ class RCModel(nn.Module):
       **self.backbone_kwarg
     )
 
-    if mode == 'mrt':
+    if mode == MODE_MRT:
       self.out_layer = OuterNet(
         x_size=self.backbone.out1_dim,
         y_size=self.backbone.out2_dim,
@@ -61,7 +61,7 @@ class RCModel(nn.Module):
         normalize=normalize,
         # **self.ptr_kwarg
       )
-    elif mode == 'obj_detection':
+    elif mode == MODE_OBJ:
       self.out_layer = ObjDetectionNet(
         x_size=self.backbone.out1_dim,
         y_size=self.backbone.out2_dim,
@@ -245,6 +245,27 @@ class RCModel(nn.Module):
         raise ValueError
     del outer
     return pred_s, pred_e, pred_score
+
+  @staticmethod
+  def decode_obj_detection(out, B, S, max_len):
+    pred_centers = out[:, :, 0]
+    pred_widths = out[:, :, 1]
+    pred_probs = out[:, :, 2]
+
+    pred_S_idx = torch.argmax(pred_probs, dim=-1)
+
+    pred_centers = torch.Tensor([pred_centers[bs, s_idx] for bs, s_idx in enumerate(pred_S_idx)])
+    pred_widths = torch.Tensor([pred_widths[bs, s_idx] for bs, s_idx in enumerate(pred_S_idx)])
+    pred_probs = torch.Tensor([pred_probs[bs, s_idx] for bs, s_idx in enumerate(pred_S_idx)])
+
+    block_size = max_len // S
+    pred_centers = (pred_centers + pred_S_idx.float()) * block_size
+    pred_widths *= max_len
+
+    pred_starts = torch.round(pred_centers - pred_widths / 2).long()
+    pred_ends = torch.round(pred_centers + pred_widths / 2).long()
+
+    return pred_starts, pred_ends, pred_probs
 
   @staticmethod
   def decode_cut_ans(score_s, score_e, ans_len_prob, top_n=1, max_len=None):

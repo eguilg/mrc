@@ -290,7 +290,7 @@ class MaiDetectionTransform(MaiIndexTransform):
     return batch
 
   @staticmethod
-  def prepare_inputs(batch, rouge=False, cuda=True):
+  def prepare_inputs(batch, rouge=False, cuda=True,obj_eval=False):
     x1_keys = [
       'c_base_idx',
       'c_sgns_idx',
@@ -329,6 +329,9 @@ class MaiDetectionTransform(MaiIndexTransform):
     inputs = [x1_list, x1_f_list, x1_mask, x2_list, x2_f_list, x2_mask, method]
     if 'start' in batch:
       if cuda:
+        y_start = batch['start'].cuda()
+        y_end = batch['end'].cuda()
+
         y_widths = batch['widths'].cuda()
         y_centers = batch['block_centers'].cuda()
         y_scores = batch['scores'].cuda()
@@ -342,9 +345,12 @@ class MaiDetectionTransform(MaiIndexTransform):
         else:
           delta_rouge = None
       else:
-        y_width = batch['width']
-        y_center = batch['block_center']
-        y_score = batch['score']
+        y_start = batch['start']
+        y_end = batch['end']
+
+        y_widths = batch['width']
+        y_centers = batch['block_center']
+        y_scores = batch['score']
         qtype_vec = batch['qtype_vec']
         c_in_a = batch['c_in_a']
         q_in_a = batch['q_in_a']
@@ -353,7 +359,10 @@ class MaiDetectionTransform(MaiIndexTransform):
           delta_rouge = batch['delta_rouge']
         else:
           delta_rouge = None
-      targets = (y_widths, y_centers, y_scores, (qtype_vec, c_in_a, q_in_a, ans_len, delta_rouge))
+      if obj_eval:
+        targets = (y_start,y_end,y_widths, y_centers, y_scores, (qtype_vec, c_in_a, q_in_a, ans_len, delta_rouge))
+      else:
+        targets = (y_widths, y_centers, y_scores, (qtype_vec, c_in_a, q_in_a, ans_len, delta_rouge))
       return inputs, targets
     else:
       return inputs, None
