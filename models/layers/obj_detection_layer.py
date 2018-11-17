@@ -177,13 +177,13 @@ class SimpleDetectionNet(nn.Module):
     filters=filters[:3]
     self.conv_net = SimpleNet1d(in_channels, filters)
 
-    # TODO: 把特征抽取网络和fc网络隔离开来
     self.fc = nn.Sequential(
       nn.Linear(filters[-1] * S, 256),
       nn.ReLU(True),
       nn.Dropout(),
       nn.Linear(256, S * B * 3),
     )
+
 
   def forward(self, x):
     net = self.conv_net(x)
@@ -205,7 +205,7 @@ class ObjDetectionNet(nn.Module):
 
     self.dropout = nn.Dropout(p=self.dropout_rate)
 
-    self.detection_net = SimpleDetectionNet(hidden_size * 2, feature_scale=4)
+    self.detection_net = SimpleDetectionNet(hidden_size * 2, feature_scale=8)
 
   def forward(self, x, y, x_mask, y_mask):
     outer = self.detection_net(x.transpose(1, 2))
