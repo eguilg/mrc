@@ -33,15 +33,29 @@ class ObjDetectionLoss(nn.Module):
     center = center.view(-1, self.S)
     score = score.view(-1, self.S)
 
+    # for b in range(2):
+    #   for pr_width, pr_center, pr_score, gt_width, gt_center, gt_score in zip(
+    #       out[b, :, 0], out[b, :, 1], out[b, :, 2], width[b, :], center[b, :], score[b, :]):
+    #     print('Pr:', float(pr_width), float(pr_center), float(pr_score))
+    #     print('Gt:', float(gt_width), float(gt_center), float(gt_score))
+    #     print()
+
     pos_mask = score.gt(0).float()
     neg_mask = (1 - score).gt(0).float()
+
+    ## pos loss:
     loss_center = torch.pow(pos_mask * (out[:, :, 0] - center), 2)
     loss_width = torch.pow(pos_mask * (out[:, :, 1] - width), 2)
+    loss_prob = torch.pow(pos_mask * (out[:, :, 2] - score), 2)
 
-    loss_score = self.coord * torch.pow(pos_mask * (out[:, :, 2] - score), 2)
-    loss_noobj_score = self.noobj * torch.pow(neg_mask * (out[:, :, 2] - score), 2)
+    ## neg loss:
+    neg_loss_center = torch.pow(neg_mask * (out[:, :, 0] - center), 2)
+    neg_loss_width = torch.pow(neg_mask * (out[:, :, 1] - width), 2)
+    neg_loss_prob = torch.pow(neg_mask * (out[:, :, 2] - score), 2)
 
-    loss = loss_center + loss_width + loss_score + loss_noobj_score
-    loss = loss.mean()
+    loss = self.coord * (loss_center + loss_width + loss_prob) + \
+           self.noobj * (neg_loss_center + neg_loss_width + neg_loss_prob)
 
+    loss = loss.sum(-1).mean()
+    # Loss: Main 0.0594
     return loss

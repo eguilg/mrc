@@ -1,3 +1,4 @@
+# encoding:utf-8
 import multiprocessing as mp
 import matplotlib.pyplot as plt
 import time
@@ -63,32 +64,38 @@ SEED = 502
 EPOCH = 150
 BATCH_SIZE = 21
 
-use_mrt = True
 switch = False
 use_data1 = False
 show_plt = False
-obj_detection = True
+
+# use_mrt = True
+# obj_detection = True
 on_windows = True
+
+MODE_PTR = 'MODE_PTR'
+MODE_MRT = 'MODE_MRT'
+MODE_OBJ = 'MODE_OBJ'
+
+mode = MODE_OBJ
 
 if __name__ == '__main__':
   print(cur_cfg.model_params)
   model_dir = './data/models/'
   mkdir_if_missing(model_dir)
 
-  if use_mrt:
+  if mode == MODE_MRT:
     model_name = cur_cfg.name + '_mrt'
+  elif mode == MODE_OBJ:
+    model_name = cur_cfg.name + '_obj'
   else:
     model_name = cur_cfg.name
-
-  if obj_detection:
-    # FIXME: 强制刷新掉model name 后期应该改造成mode
-    model_name = cur_cfg.name + '_obj'
 
   if switch:
     model_name += '_switch'
   if use_data1:
     model_name += '_full_data'
   model_path = os.path.join(model_dir, model_name + '.state')
+  print('Model path:', model_path)
 
   jieba_base_v = Vocab('./data/embed/base_token_vocab_jieba.pkl',
                        './data/embed/base_token_embed_jieba.pkl')
@@ -134,7 +141,7 @@ if __name__ == '__main__':
       'jieba': [jieba_base_v.embeddings, jieba_sgns_v.embeddings, jieba_flag_v.embeddings],
       'pyltp': []
     }
-  if obj_detection:
+  if mode == MODE_OBJ:
     from dataset.transform import MaiDetectionTransform
 
     ## 默认不开switch
@@ -162,9 +169,9 @@ if __name__ == '__main__':
     BATCH_SIZE = 12
     # train_dataset=MaiWindowsDataset('data/train/gen/test-question.first1000/total_samples_jieba500.json', transform, use_mrt)
     train_dataset = MaiWindowsDataset('data/train/gen/test-question.first1000/total_samples_jieba500.json', transform,
-                                      use_mrt)
+                                      mode == MODE_MRT)
     dev_dataset = MaiWindowsDataset('data/train/gen/test-question.first1000/total_samples_jieba500.json', transform,
-                                    use_mrt)
+                                    mode == MODE_MRT)
     num_workers = 0
   # data_for_train = data_for_train[:1000]
   # data_for_dev = data_for_train[:100]
@@ -189,13 +196,12 @@ if __name__ == '__main__':
 
   model = RCModel(model_params, embed_lists, mode='obj_detection')
   model = model.cuda()
-  if use_mrt:
+  if mode == MODE_MRT:
     criterion_main = RougeLoss().cuda()
+  elif mode == MODE_OBJ:
+    criterion_main = ObjDetectionLoss(B=transform.B, S=transform.S, dynamic_score=False).cuda()
   else:
     criterion_main = PointerLoss().cuda()
-
-  if obj_detection:
-    criterion_main = ObjDetectionLoss(B=transform.B, S=transform.S, dynamic_score=False).cuda()
 
   criterion_extra = nn.MultiLabelSoftMarginLoss().cuda()
 
@@ -214,12 +220,18 @@ if __name__ == '__main__':
 
   if os.path.isfile(model_path):
     print('load training param, ', model_path)
-    if use_mrt:
+    if mode == 'mrt':
       state = torch.load(model_path)
       model.load_state_dict(state['best_model_state'])
       optimizer.load_state_dict(state['best_opt_state'])
       epoch_list = range(state['best_epoch'] + 1, state['best_epoch'] + 1 + EPOCH)
       global_step = state['best_step']
+    elif mode == 'obj_detection':
+      state = torch.load(model_path)
+      model.load_state_dict(state['cur_model_state'])
+      optimizer.load_state_dict(state['cur_opt_state'])
+      epoch_list = range(state['cur_epoch'] + 1, state['cur_epoch'] + 1 + EPOCH)
+      global_step = state['cur_step']
     else:
       state = torch.load(model_path)
       model.load_state_dict(state['cur_model_state'])
@@ -247,7 +259,7 @@ if __name__ == '__main__':
   q_in_a_loss_print = 0
   ans_len_loss_print = 0
 
-  if state is not None:
+  if state is not None and 'best_score' in state:
     if state['best_score'] > 0.90:
       grade = 3
     elif state['best_score'] > 0.89:
@@ -261,25 +273,33 @@ if __name__ == '__main__':
     step = 0
     with tqdm(total=len(train_loader)) as bar:
       for i, batch in enumerate(train_loader):
-        inputs, targets = transform.prepare_inputs(batch, use_mrt)
+        inputs, targets = transform.prepare_inputs(batch, mode != MODE_PTR)
 
         model.train()
         optimizer.zero_grad()
         out, extra_outputs = model(*inputs)
-        if obj_detection:
+        if mode == MODE_OBJ:
           widths, centers, scores, extra_targets = targets
         else:
           starts, ends, extra_targets = targets
 
+        # for b in range(2):
+        #   for pr_width, pr_center, pr_score, gt_width, gt_center, gt_score in zip(out[b, :, 0], out[b, :, 1],
+        #                                                                           out[b, :, 2],
+        #                                                                           widths[b, :], centers[b, :],
+        #                                                                           scores[b, :]):
+        #     print('Pr:', float(pr_width), float(pr_center), float(pr_score))
+        #     print('Gt:', float(gt_width), float(gt_center), float(gt_score))
+        #     print()
+
         q_type_gt, c_in_a_gt, q_in_a_gt, ans_len_gt, delta_rouge = extra_targets
         q_type_pred, c_in_a_pred, q_in_a_pred, ans_len_logits = extra_outputs
-        if isinstance(criterion_main, PointerLoss):
-          loss_main = criterion_main(*out, starts, ends)
+        if isinstance(criterion_main, ObjDetectionLoss):
+          loss_main = criterion_main(out, widths, centers, scores)
         elif isinstance(criterion_main, RougeLoss) and delta_rouge is not None:
           loss_main = criterion_main(out, delta_rouge)
-        elif isinstance(criterion_main, ObjDetectionLoss) and delta_rouge is not None:
-          # fixme:
-          loss_main = criterion_main(out, widths, centers, scores)
+        elif isinstance(criterion_main, PointerLoss):
+          loss_main = criterion_main(*out, starts, ends)
         else:
           raise NotImplementedError
 
@@ -325,17 +345,7 @@ if __name__ == '__main__':
           ans_len_loss_print = 0
 
         if global_step - last_val_step == val_every[grade]:
-          if obj_detection:
-            state = {}
-            # FIXME: 目标检测的eval还没写，所以临时跳过先
-            state['cur_model_state'] = model.state_dict()
-            state['cur_opt_state'] = optimizer.state_dict()
-            state['cur_epoch'] = e
-            state['val_loss'] = val_loss_total / val_step
-            state['val_score'] = rouge_score
-            state['cur_step'] = global_step
-
-            torch.save(state, model_path)
+          if mode == MODE_OBJ:
             continue
 
           # evaluate(show_plt=False)
@@ -353,7 +363,7 @@ if __name__ == '__main__':
             model.eval()
             for val_batch in dev_loader:
               # cut, cuda
-              inputs, targets = transform.prepare_inputs(val_batch, use_mrt)
+              inputs, targets = transform.prepare_inputs(val_batch, mode != MODE_PTR)
               starts, ends, extra_targets = targets
               _, _, _, ans_len_gt, delta_rouge = extra_targets
 
@@ -476,3 +486,15 @@ if __name__ == '__main__':
           state['cur_step'] = global_step
 
           torch.save(state, model_path)
+
+    print('Saving into', model_path)
+    state = {}
+    # FIXME: 目标检测的eval还没写，所以临时跳过先
+    state['cur_model_state'] = model.state_dict()
+    state['cur_opt_state'] = optimizer.state_dict()
+    state['cur_epoch'] = e
+    # state['val_loss'] = val_loss_total / val_step
+    # state['val_score'] = rouge_score
+    state['cur_step'] = global_step
+
+    torch.save(state, model_path)
