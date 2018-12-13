@@ -62,7 +62,7 @@ cur_cfg = bidaf3
 
 SEED = 502
 EPOCH = 150
-BATCH_SIZE = 21
+BATCH_SIZE = 256
 
 show_plt = False
 on_windows = True
@@ -118,7 +118,7 @@ if __name__ == '__main__':
   dev_dataset = TitleSummDataset(val_file, transform, use_rouge=True)
 
   if on_windows:
-    BATCH_SIZE = 12
+    BATCH_SIZE = 128
     num_workers = 0
   else:
     num_workers = max(4, mp.cpu_count())
@@ -194,7 +194,7 @@ if __name__ == '__main__':
   print_every = 50
   last_val_step = global_step
   if on_windows:
-    val_every = [200, 70, 50, 35]
+    val_every = [10, 70, 50, 35]
   else:
     val_every = [1000, 700, 500, 350]
   drop_lr_frq = 1
@@ -310,7 +310,7 @@ if __name__ == '__main__':
 
               # cut, cuda
               if mode == MODE_OBJ:
-                inputs, targets = transform.prepare_inputs(val_batch, mode != MODE_PTR, obj_eval=mode == MODE_OBJ)
+                inputs, targets = transform.prepare_inputs(val_batch, mode != MODE_PTR, obj_eval=(mode == MODE_OBJ))
                 starts, ends, widths, centers, scores, extra_targets = targets
               else:
                 inputs, targets = transform.prepare_inputs(val_batch, mode != MODE_PTR)
@@ -334,7 +334,7 @@ if __name__ == '__main__':
               elif isinstance(criterion_main, RougeLoss) and delta_rouge is not None:
                 val_loss = criterion_main(out, delta_rouge)
                 out = out.detach().cpu()
-                batch_pos1, batch_pos2, confidence = model.decode_outer(out)
+                batch_pos1, batch_pos2, confidence = model.decode_outer(out, top_n=5)
               elif isinstance(criterion_main, ObjDetectionLoss):
                 val_loss = criterion_main(out, widths, centers, scores)
                 out = out.detach().cpu()
@@ -347,8 +347,6 @@ if __name__ == '__main__':
                 raise NotImplementedError
               starts = starts.detach().cpu()
               ends = ends.detach().cpu()
-              start_hit = (torch.LongTensor(batch_pos1) == starts).sum().item()
-              end_hit = (torch.LongTensor(batch_pos2) == ends).sum().item()
 
               if show_plt and val_step % 1000 == 0:
                 for o, sample in zip(out, val_batch['raw']):
@@ -372,15 +370,28 @@ if __name__ == '__main__':
                   plt.colorbar()
                   plt.show()
 
-              for pos1, pos2, sample in zip(batch_pos1, batch_pos2, val_batch['raw']):
-                gt_ans = sample['answer']
-                pred_ans = postprocess.gen_ans(pos1, pos2, sample)
-                rl.add_inst(pred_ans, gt_ans)
+              if mode == MODE_MRT:
+                for pos1, pos2, sample, conf in zip(batch_pos1, batch_pos2, val_batch['raw'], confidence):
+                  gt_ans = sample['answer']
+
+                  pred_anss = []
+                  for p1, p2, c in zip(pos1, pos2, conf):
+                    if c < 0.5:
+                      break
+                    pred_ans = postprocess.gen_ans(p1, p2, sample, key='ori_title_tokens', post_process=False)
+                    pred_anss.append(pred_ans)
+                  pred_ans = ''.join(pred_anss)
+                  rl.add_inst(pred_ans, gt_ans)
+              elif mode == MODE_PTR:
+                for pos1, pos2, sample in zip(batch_pos1, batch_pos2, val_batch['raw']):
+                  gt_ans = sample['answer']
+                  pred_ans = postprocess.gen_ans(pos1, pos2, sample, key='ori_title_tokens', post_process=False)
+                  rl.add_inst(pred_ans, gt_ans)
 
               val_loss_total += val_loss.item()
               val_ans_len_hit += ans_len_hit
-              val_start_hit += start_hit
-              val_end_hit += end_hit
+              val_start_hit += 0
+              val_end_hit += 0
               val_sample_num += ans_len_logits.size(0)
               val_step += 1
 
