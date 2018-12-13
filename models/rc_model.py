@@ -10,7 +10,7 @@ from config.config import MODE_OBJ, MODE_MRT, MODE_PTR
 
 
 class RCModel(nn.Module):
-  def __init__(self, param_dict, embed_lists, normalize=True, mode=MODE_PTR):
+  def __init__(self, param_dict, embed_lists, normalize=True, mode=MODE_PTR,emb_trainable=False):
     super(RCModel, self).__init__()
     # Store config
     self.param_dict = param_dict
@@ -35,8 +35,8 @@ class RCModel(nn.Module):
     except KeyError:
       raise KeyError('Wrong pointer type')
 
-    self.merged_embeddings_jieba = MergedEmbedding(embed_lists['jieba'])
-    self.merged_embeddings_pyltp = MergedEmbedding(embed_lists['pyltp'])
+    self.merged_embeddings_jieba = MergedEmbedding(embed_lists['jieba'],trainable=emb_trainable)
+    self.merged_embeddings_pyltp = MergedEmbedding(embed_lists['pyltp'],trainable=emb_trainable)
     self.merged_embeddings = {
       'jieba': self.merged_embeddings_jieba,
       'pyltp': self.merged_embeddings_pyltp

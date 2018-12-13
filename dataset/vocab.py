@@ -17,23 +17,25 @@ class Vocab(object):
 		self.size = 2
 		if vocab_path and embed_path is not None:
 			self.load(vocab_path, embed_path)
-		elif tokens and embeds is not None:
+		else:
 			self.__init_words__(tokens, embeds)
 
 	def __init_words__(self, tokens, embeds):
 		self.dim = embeds.shape[1]
 		self.embeddings = np.zeros([len(self.index2word), self.dim])
-		self.index2word.append(tokens)
-		self.word2index.update(zip(tokens, range(2, len(tokens) + 2)))
-		self.embeddings = np.concatenate([self.embeddings, np.array(embeds)])
-		# set embedding of '<unk>' to mean value of given embeds
-		self.embeddings[self.unk_idx] = np.mean(embeds, axis=0)
-		self.size = self.embeddings.shape[0]
+
+		if tokens and embeds is not None:
+			self.index2word.append(tokens)
+			self.word2index.update(zip(tokens, range(2, len(tokens) + 2)))
+			self.embeddings = np.concatenate([self.embeddings, np.array(embeds)])
+			# set embedding of '<unk>' to mean value of given embeds
+			self.embeddings[self.unk_idx] = np.mean(embeds, axis=0)
+			self.size = self.embeddings.shape[0]
 
 	def load(self, vocab_pkl_path, embed_pkl_path):
 		tokens = read_pkl(vocab_pkl_path)
 		embeds = read_pkl(embed_pkl_path)
-		if tokens and embeds is not None:
+		if tokens is not None and embeds is not None:
 			self.__init_words__(tokens, embeds)
 		else:
 			raise ValueError('wrong token/embeds input')

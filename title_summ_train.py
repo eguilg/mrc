@@ -11,8 +11,8 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from config import config
-from dataset import (MaiDirDataSource, MaiDirDataset, Vocab,
-                     MaiIndexTransform, MethodBasedBatchSampler)
+from dataset import (TitleSummDataset, Vocab,
+                     TitleSummTransform, MethodBasedBatchSampler)
 from dataset import MaiWindowsDataset
 from models.losses import PointerLoss, RougeLoss
 from models.losses.obj_detection_loss import ObjDetectionLoss
@@ -64,20 +64,21 @@ SEED = 502
 EPOCH = 150
 BATCH_SIZE = 21
 
-switch = False
-use_data1 = False
 show_plt = False
-
-# use_mrt = True
-# obj_detection = True
 on_windows = True
 
-from config.config import MODE_OBJ,MODE_MRT,MODE_PTR
+from config.config import MODE_OBJ, MODE_MRT, MODE_PTR
+
 mode = MODE_MRT
 
 if __name__ == '__main__':
   print(cur_cfg.model_params)
-  model_dir = './data/models/'
+  data_root_folder = './title_data'
+  corpus_file = os.path.join(data_root_folder, 'corpus.txt')
+  train_file = os.path.join(data_root_folder, 'preprocessed', 'val.preprocessed.json')  # FIXME:
+  val_file = os.path.join(data_root_folder, 'preprocessed', 'val.preprocessed.json')
+
+  model_dir = os.path.join(data_root_folder, 'models')
   mkdir_if_missing(model_dir)
 
   if mode == MODE_MRT:
@@ -87,98 +88,47 @@ if __name__ == '__main__':
   else:
     model_name = cur_cfg.name
 
-  if switch:
-    model_name += '_switch'
-  if use_data1:
-    model_name += '_full_data'
   model_path = os.path.join(model_dir, model_name + '.state')
   print('Model path:', model_path)
 
-  jieba_base_v = Vocab('./data/embed/base_token_vocab_jieba.pkl',
-                       './data/embed/base_token_embed_jieba.pkl')
-  jieba_sgns_v = Vocab('./data/embed/train_sgns_vocab_jieba.pkl',
-                       './data/embed/train_sgns_embed_jieba.pkl')
-  jieba_flag_v = Vocab('./data/embed/base_flag_vocab_jieba.pkl',
-                       './data/embed/base_flag_embed_jieba.pkl')
+  jieba_base_v = Vocab(os.path.join(data_root_folder, 'vocab', 'title_summ.vocab.pkl'),
+                       os.path.join(data_root_folder, 'vocab', 'title_summ.emb.pkl'))
 
-  if switch:
-    pyltp_base_v = Vocab('./data/embed/base_token_vocab_pyltp.pkl',
-                         './data/embed/base_token_embed_pyltp.pkl')
-    pyltp_sgns_v = Vocab('./data/embed/train_sgns_vocab_pyltp.pkl',
-                         './data/embed/train_sgns_embed_pyltp.pkl')
-    pyltp_flag_v = Vocab('./data/embed/base_flag_vocab_pyltp.pkl',
-                         './data/embed/base_flag_embed_pyltp.pkl')
+  jieba_sgns_v = Vocab(os.path.join(data_root_folder, 'vocab', 'title_summ.vocab.pkl'),
+                       os.path.join(data_root_folder, 'vocab', 'title_summ.emb.pkl'))
+  jieba_flag_v = Vocab(os.path.join(data_root_folder, 'vocab', 'title_summ.vocab.pkl'),
+                       os.path.join(data_root_folder, 'vocab', 'title_summ.emb.pkl'))
 
-    transform = MaiIndexTransform(jieba_base_v, jieba_sgns_v, jieba_flag_v, pyltp_base_v, pyltp_sgns_v,
-                                  pyltp_flag_v)
-    trainset1_roots = [
-      './data/train/gen/train_1/samples_jieba500',
-      './data/train/gen/train_1/samples_pyltp500',
-    ]
-    trainset2_roots = [
-      './data/train/gen/train_2/samples_jieba500',
-      './data/train/gen/train_2/samples_pyltp500',
-    ]
+  # jieba_sgns_v = Vocab(os.path.join(data_root_folder, 'vocab', 'useless.vocab.pkl'),
+  #                      os.path.join(data_root_folder, 'vocab', 'useless.emb.pkl'))
+  # jieba_flag_v = Vocab(os.path.join(data_root_folder, 'vocab', 'useless.vocab.pkl'),
+  #                      os.path.join(data_root_folder, 'vocab', 'useless.emb.pkl'))
 
-    embed_lists = {
-      'jieba': [jieba_base_v.embeddings, jieba_sgns_v.embeddings, jieba_flag_v.embeddings],
-      'pyltp': [pyltp_base_v.embeddings, pyltp_sgns_v.embeddings, pyltp_flag_v.embeddings]
-    }
-  else:
-    transform = MaiIndexTransform(jieba_base_v, jieba_sgns_v, jieba_flag_v)
-    trainset1_roots = [
-      './data/train/gen/train_1/samples_jieba500'
-    ]
-    trainset2_roots = [
-      './data/train/gen/train_2/samples_jieba500'
-      # 'data/train/gen/test-question.first1000/samples_jieba500'
-    ]
+  trainset_roots = [
+    os.path.join(data_root_folder, 'val.txt')
+  ]
 
-    embed_lists = {
-      'jieba': [jieba_base_v.embeddings, jieba_sgns_v.embeddings, jieba_flag_v.embeddings],
-      'pyltp': []
-    }
-  if mode == MODE_OBJ:
-    from dataset.transform import MaiDetectionTransform
+  embed_lists = {
+    'jieba': [jieba_base_v.embeddings, jieba_sgns_v.embeddings, jieba_flag_v.embeddings],
+    'pyltp': []
+  }
 
-    ## 默认不开switch
-    assert not switch
-    transform = MaiDetectionTransform(jieba_base_v, jieba_sgns_v, jieba_flag_v, B=1, S=16)
+  transform = TitleSummTransform(jieba_base_v, jieba_sgns_v, jieba_flag_v)
+  train_dataset = TitleSummDataset(train_file, transform, use_rouge=True)
+  dev_dataset = TitleSummDataset(val_file, transform, use_rouge=True)
 
-  if not on_windows:
-    train_data1_source = MaiDirDataSource(trainset1_roots)
-    train_data2_source = MaiDirDataSource(trainset2_roots)
-    train_data2_source.split(dev_split=0.1, seed=SEED)
-
-    data_for_train = train_data2_source.train
-    data_for_dev = train_data2_source.dev
-
-    if use_data1:
-      data_for_train += train_data1_source.data
-      np.random.seed(SEED)
-      np.random.shuffle(data_for_train)
-
-    train_dataset = MaiDirDataset(data_for_train, transform)
-    dev_dataset = MaiDirDataset(data_for_dev, transform)
-
-    num_workers = max(4, mp.cpu_count())
-  else:
+  if on_windows:
     BATCH_SIZE = 12
-    # train_dataset=MaiWindowsDataset('data/train/gen/test-question.first1000/total_samples_jieba500.json', transform, use_mrt)
-    train_dataset = MaiWindowsDataset('data/train/gen/test-question.first1000/total_samples_jieba500.json', transform,
-                                      mode == MODE_MRT)
-    dev_dataset = MaiWindowsDataset('data/train/gen/test-question.first1000/total_samples_jieba500.json', transform,
-                                    mode == MODE_MRT)
     num_workers = 0
-  # data_for_train = data_for_train[:1000]
-  # data_for_dev = data_for_train[:100]
+  else:
+    num_workers = max(4, mp.cpu_count())
 
   train_loader = DataLoader(
     dataset=train_dataset,
     batch_size=BATCH_SIZE,
     # batch_sampler=MethodBasedBatchSampler(data_for_train, batch_size=BATCH_SIZE, seed=SEED),
     num_workers=num_workers,
-    collate_fn=transform.batchify
+    collate_fn=transform.batchify,
   )
 
   dev_loader = DataLoader(
@@ -191,7 +141,7 @@ if __name__ == '__main__':
 
   model_params = cur_cfg.model_params
 
-  model = RCModel(model_params, embed_lists, mode=mode)
+  model = RCModel(model_params, embed_lists, mode=mode, emb_trainable=True)
   model = model.cuda()
   if mode == MODE_MRT:
     criterion_main = RougeLoss().cuda()
@@ -210,11 +160,6 @@ if __name__ == '__main__':
   # Optimizer
   optimizer = torch.optim.Adam(param_to_update, lr=4e-4)
 
-  # # Trainer
-  # trainer = Trainer(model, criterion)
-  #
-  # trainer.train(1, train_loader, optimizer)
-
   if os.path.isfile(model_path):
     print('load training param, ', model_path)
     if mode == MODE_MRT:
@@ -231,7 +176,7 @@ if __name__ == '__main__':
       global_step = state['cur_step']
 
       if 'best_score' not in state:
-        state['best_score']=0
+        state['best_score'] = 0
     else:
       state = torch.load(model_path)
       model.load_state_dict(state['cur_model_state'])
@@ -503,4 +448,3 @@ if __name__ == '__main__':
           state['cur_step'] = global_step
 
           torch.save(state, model_path)
-

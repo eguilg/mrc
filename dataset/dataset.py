@@ -88,7 +88,7 @@ class MaiWindowsDataset(Dataset):
 
     self.use_rouge = use_rouge
     with open(data_path, encoding='utf-8') as f:
-      self.data_source=json.load(f)[:1000]
+      self.data_source = json.load(f)[:1000]
 
     self.transformed_data = {}
     self.transform = transform
@@ -109,13 +109,46 @@ class MaiWindowsDataset(Dataset):
     #   return key_data
 
     try:
-      key_data = self.transform(self.data_source[index],method='jieba')
+      key_data = self.transform(self.data_source[index], method='jieba')
     except:
       print(index)
-      key_data = self.transform(self.data_source[0],method='jieba')
+      key_data = self.transform(self.data_source[0], method='jieba')
     # self.transformed_data[index] = key_data
 
     return key_data
+
+  def __len__(self):
+    return len(self.data_source)
+
+
+class TitleSummDataset(Dataset):
+  def __init__(self, data_path, transform, use_rouge):
+    self.use_rouge = use_rouge
+
+    data_source = []
+    with open(data_path, encoding='utf-8') as f:
+      lines = f.readlines()
+      for line in lines:
+        data_source.append(json.loads(line))
+
+    self.data_source = data_source
+    self.transformed_data = {}
+    self.transform = transform
+
+  def __getitem__(self, indices):
+    if isinstance(indices, (tuple, list)):
+      return [self.__get_single_item__(index) for index in indices]
+    return self.__get_single_item__(indices)
+
+  def __get_single_item__(self, index):
+    if index in self.transformed_data:
+      key_data = self.transformed_data[index]
+      return key_data
+    else:
+      key_data = self.transform(self.data_source[index], method='jieba')
+      self.transformed_data[index] = key_data
+
+      return key_data
 
   def __len__(self):
     return len(self.data_source)
