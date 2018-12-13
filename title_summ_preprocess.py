@@ -4,6 +4,8 @@ delta_token_ends
 delta_rouges
 """
 import os
+import random
+
 import json
 import numpy as np
 from tqdm import tqdm
@@ -64,12 +66,9 @@ def output_spans(ori_title, short_title):
   return spans, span_text
 
 
-if __name__ == '__main__':
-  train_path = 'title_data/train.txt'
-  val_path = 'title_data/val.txt'
-
-  with open('val.preprocessed.json', 'w', encoding='utf-8') as wf:
-    val_data = read_data(val_path)
+def preproce(raw_path, save_path):
+  with open(save_path, 'w', encoding='utf-8') as wf:
+    val_data = read_data(raw_path)
     for data in tqdm(val_data):
       ori_title = data[0]
       short_title = data[1]
@@ -86,7 +85,15 @@ if __name__ == '__main__':
 
         'delta_token_starts': [span[0] for span in spans],
         'delta_token_ends': [span[1] for span in spans],
-        'delta_rouges': [1.0 for _ in range(len(spans))]
+        'delta_rouges': [1.0-random.random()/10 for _ in range(len(spans))]
 
       }
       wf.write('%s\n' % (json.dumps(item, ensure_ascii=False)))
+
+
+if __name__ == '__main__':
+  train_path = 'title_data/train.txt'
+  val_path = 'title_data/val.txt'
+
+  preproce(val_path, 'title_data/preprocessed/val.preprocessed.json')
+  preproce(train_path, 'title_data/preprocessed/train.preprocessed.json')

@@ -66,7 +66,7 @@ BATCH_SIZE = 21
 
 switch = False
 use_data1 = False
-show_plt = False
+show_plt = True
 
 # use_mrt = True
 # obj_detection = True

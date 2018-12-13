@@ -127,7 +127,7 @@ class TitleSummDataset(Dataset):
 
     data_source = []
     with open(data_path, encoding='utf-8') as f:
-      lines = f.readlines()
+      lines = f.readlines()[:5000]
       for line in lines:
         data_source.append(json.loads(line))
 

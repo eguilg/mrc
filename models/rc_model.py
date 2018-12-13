@@ -199,6 +199,7 @@ class RCModel(nn.Module):
     del score_s, score_e
     return pred_s, pred_e, pred_score
 
+
   @staticmethod
   def decode_outer(outer, top_n=1, max_len=None):
     """Take argmax of constrained score_s * score_e.
@@ -228,21 +229,32 @@ class RCModel(nn.Module):
       elif len(scores_flat) < top_n:
         idx_sort = np.argsort(-scores_flat)
       else:
-        idx = np.argpartition(-scores_flat, top_n)[0:top_n]
-        idx_sort = idx[np.argsort(-scores_flat[idx])]
-
+        ## FIXME: 针对多答案的临时魔改: 每次选中一个prob最大的答案，然后把临近的±3行3列全都置零
+        raw_score=scores.copy()
+        idx_sort=[]
+        for _ in range(top_n):
+          idx=np.argmax(scores_flat)
+          idx_sort.append(idx)
+          s,e= np.unravel_index(idx, scores.shape)
+          # s,e=s[0],e[0]
+          scores[:s+1,e:]=0
+          scores[s:e+1,:]=0
+          scores[:,s:e+1]=0
+          scores_flat = scores.flatten()
       s_idx, e_idx = np.unravel_index(idx_sort, scores.shape)
 
       if top_n == 1:
         pred_s.append(s_idx[0])
         pred_e.append(e_idx[0])
         pred_score.append(scores_flat[idx_sort][0])
-      elif top_n > 1:
+      elif len(scores_flat) < top_n:
         pred_s.append(s_idx)
         pred_e.append(e_idx)
         pred_score.append(scores_flat[idx_sort])
       else:
-        raise ValueError
+        pred_s.append(s_idx)
+        pred_e.append(e_idx)
+        pred_score.append(raw_score.flatten()[idx_sort])
     del outer
     return pred_s, pred_e, pred_score
 

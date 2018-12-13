@@ -64,7 +64,7 @@ SEED = 502
 EPOCH = 150
 BATCH_SIZE = 256
 
-show_plt = False
+show_plt = True
 on_windows = True
 
 from config.config import MODE_OBJ, MODE_MRT, MODE_PTR
@@ -194,7 +194,7 @@ if __name__ == '__main__':
   print_every = 50
   last_val_step = global_step
   if on_windows:
-    val_every = [10, 70, 50, 35]
+    val_every = [1, 70, 50, 35]
   else:
     val_every = [1000, 700, 500, 350]
   drop_lr_frq = 1
@@ -334,7 +334,7 @@ if __name__ == '__main__':
               elif isinstance(criterion_main, RougeLoss) and delta_rouge is not None:
                 val_loss = criterion_main(out, delta_rouge)
                 out = out.detach().cpu()
-                batch_pos1, batch_pos2, confidence = model.decode_outer(out, top_n=5)
+                batch_pos1, batch_pos2, confidence = model.decode_outer(out, top_n=20)
               elif isinstance(criterion_main, ObjDetectionLoss):
                 val_loss = criterion_main(out, widths, centers, scores)
                 out = out.detach().cpu()
