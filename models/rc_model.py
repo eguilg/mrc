@@ -222,7 +222,7 @@ class RCModel(nn.Module):
       scores.triu_().tril_(max_len - 1)
 
       # Take argmax or top n
-      scores = scores.numpy()
+      scores = scores.numpy().copy()
       scores_flat = scores.flatten()
       if top_n == 1:
         idx_sort = [np.argmax(scores_flat)]

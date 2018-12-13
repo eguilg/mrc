@@ -13,7 +13,6 @@ from tqdm import tqdm
 from config import config
 from dataset import (TitleSummDataset, Vocab,
                      TitleSummTransform, MethodBasedBatchSampler)
-from dataset import MaiWindowsDataset
 from models.losses import PointerLoss, RougeLoss
 from models.losses.obj_detection_loss import ObjDetectionLoss
 
@@ -62,7 +61,7 @@ cur_cfg = bidaf3
 
 SEED = 502
 EPOCH = 150
-BATCH_SIZE = 256
+BATCH_SIZE = 64
 
 show_plt = True
 on_windows = True
@@ -114,14 +113,15 @@ if __name__ == '__main__':
   }
 
   transform = TitleSummTransform(jieba_base_v, jieba_sgns_v, jieba_flag_v)
-  train_dataset = TitleSummDataset(train_file, transform, use_rouge=True)
-  dev_dataset = TitleSummDataset(val_file, transform, use_rouge=True)
+  train_dataset = TitleSummDataset(train_file, transform, use_rouge=True, max_size=5000)  # FIXME:
+  dev_dataset = TitleSummDataset(val_file, transform, use_rouge=True, max_size=5000)
 
-  if on_windows:
-    BATCH_SIZE = 128
-    num_workers = 0
-  else:
-    num_workers = max(4, mp.cpu_count())
+  num_workers=0
+  # if on_windows:
+  #   BATCH_SIZE = 64
+  #   num_workers = 0
+  # else:
+  #   num_workers = max(4, mp.cpu_count())
 
   train_loader = DataLoader(
     dataset=train_dataset,
@@ -196,7 +196,7 @@ if __name__ == '__main__':
   if on_windows:
     val_every = [1, 70, 50, 35]
   else:
-    val_every = [1000, 700, 500, 350]
+    val_every = [500, 700, 500, 350]
   drop_lr_frq = 1
   # val_every_min = 350
   # val_every = 1000
@@ -334,7 +334,7 @@ if __name__ == '__main__':
               elif isinstance(criterion_main, RougeLoss) and delta_rouge is not None:
                 val_loss = criterion_main(out, delta_rouge)
                 out = out.detach().cpu()
-                batch_pos1, batch_pos2, confidence = model.decode_outer(out, top_n=20)
+                batch_pos1, batch_pos2, confidence = model.decode_outer(out, top_n=5)
               elif isinstance(criterion_main, ObjDetectionLoss):
                 val_loss = criterion_main(out, widths, centers, scores)
                 out = out.detach().cpu()
@@ -376,10 +376,13 @@ if __name__ == '__main__':
 
                   pred_anss = []
                   for p1, p2, c in zip(pos1, pos2, conf):
-                    if c < 0.5:
+                    if c < 0.8:
                       break
+
                     pred_ans = postprocess.gen_ans(p1, p2, sample, key='ori_title_tokens', post_process=False)
-                    pred_anss.append(pred_ans)
+                    pred_anss.append((pred_ans,p1))
+
+                  pred_anss=[t for t,_ in sorted(pred_anss,key=lambda d:d[1])]
                   pred_ans = ''.join(pred_anss)
                   rl.add_inst(pred_ans, gt_ans)
               elif mode == MODE_PTR:

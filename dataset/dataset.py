@@ -122,12 +122,14 @@ class MaiWindowsDataset(Dataset):
 
 
 class TitleSummDataset(Dataset):
-  def __init__(self, data_path, transform, use_rouge):
+  def __init__(self, data_path, transform, use_rouge, max_size=None):
     self.use_rouge = use_rouge
 
     data_source = []
     with open(data_path, encoding='utf-8') as f:
-      lines = f.readlines()[:5000]
+      lines = f.readlines()
+      if max_size is not None and max_size > 0:
+        lines = lines[:max_size]
       for line in lines:
         data_source.append(json.loads(line))
 
