@@ -309,7 +309,6 @@ if __name__ == '__main__':
             for val_batch in dev_loader:
 
               # cut, cuda
-
               if mode == MODE_OBJ:
                 inputs, targets = transform.prepare_inputs(val_batch, mode != MODE_PTR, obj_eval=mode == MODE_OBJ)
                 starts, ends, widths, centers, scores, extra_targets = targets

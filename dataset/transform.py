@@ -4,6 +4,7 @@ import torch
 from .feature_handler.question_handler import QuestionTypeHandler
 import numpy as np
 
+
 def pad(seqs, max_len, pad_val):
   """ pad a batch to its max len """
   tmp = []
@@ -28,6 +29,20 @@ def gen_sparse_indices(batch):
       filter(lambda i: sample['answer_token_start'] <= sample['delta_token_starts'][i] <= sample['answer_token_end'] or
                        sample['answer_token_start'] <= sample['delta_token_ends'][i] <= sample['answer_token_end'],
              list(range(len(sample['delta_token_starts'])))))
+    idx[0].extend([i for m in range(len(select_index))])
+    idx[1].extend([sample['delta_token_starts'][idx] for idx in select_index])
+    idx[2].extend([sample['delta_token_ends'][idx] for idx in select_index])
+    val.extend([sample['delta_rouges'][idx] for idx in select_index])
+  return idx, val
+
+
+def title_summ_gen_sparse_indices(batch):
+  idx = [[], [], []]
+  val = []
+  for i, sample in enumerate(batch):
+    sample = sample['raw']
+    select_index = list(range(len(sample['delta_token_starts'])))
+
     idx[0].extend([i for m in range(len(select_index))])
     idx[1].extend([sample['delta_token_starts'][idx] for idx in select_index])
     idx[2].extend([sample['delta_token_ends'][idx] for idx in select_index])
@@ -251,15 +266,15 @@ class MaiDetectionTransform(MaiIndexTransform):
       if self.B <= 1:
         # FIXME: 更新成适配多个B的
         for sample in res_batch:
-          sample['scores']=[0.0 for _ in range(self.S)]
-          sample['widths']=[0.0 for _ in range(self.S)]
-          sample['block_centers']=[0.0 for _ in range(self.S)]
+          sample['scores'] = [0.0 for _ in range(self.S)]
+          sample['widths'] = [0.0 for _ in range(self.S)]
+          sample['block_centers'] = [0.0 for _ in range(self.S)]
 
           width = sample['end'] - sample['start']
           width /= c_max_len
 
-          block_center= (sample['end'] + sample['start']) // 2
-          idx=block_center//block_width
+          block_center = (sample['end'] + sample['start']) // 2
+          idx = block_center // block_width
 
           block_center %= block_width
           block_center /= block_width
@@ -290,7 +305,7 @@ class MaiDetectionTransform(MaiIndexTransform):
     return batch
 
   @staticmethod
-  def prepare_inputs(batch, rouge=False, cuda=True,obj_eval=False):
+  def prepare_inputs(batch, rouge=False, cuda=True, obj_eval=False):
     x1_keys = [
       'c_base_idx',
       'c_sgns_idx',
@@ -360,12 +375,13 @@ class MaiDetectionTransform(MaiIndexTransform):
         else:
           delta_rouge = None
       if obj_eval:
-        targets = (y_start,y_end,y_widths, y_centers, y_scores, (qtype_vec, c_in_a, q_in_a, ans_len, delta_rouge))
+        targets = (y_start, y_end, y_widths, y_centers, y_scores, (qtype_vec, c_in_a, q_in_a, ans_len, delta_rouge))
       else:
         targets = (y_widths, y_centers, y_scores, (qtype_vec, c_in_a, q_in_a, ans_len, delta_rouge))
       return inputs, targets
     else:
       return inputs, None
+
 
 class TitleSummTransform(object):
   base_vocab = {}
@@ -376,7 +392,6 @@ class TitleSummTransform(object):
     self.base_vocab['jieba'] = jieba_base_v
     self.sgns_vocab['jieba'] = jieba_sgns_v
     self.flag_vocab['jieba'] = jieba_flag_v
-
 
   def __call__(self, item, method):
     res = {
@@ -401,8 +416,8 @@ class TitleSummTransform(object):
     if res['q_len'] == 0:
       res['q_mask'] = [0]
     if 'answer_token_start' in item:
-      fake_qtype_vec=np.zeros(10)
-      fake_qtype_vec[0]=1.0
+      fake_qtype_vec = np.zeros(10)
+      fake_qtype_vec[0] = 1.0
       res.update({
         'start': item['answer_token_start'],
         'end': item['answer_token_end'],
@@ -458,7 +473,7 @@ class TitleSummTransform(object):
         'q_in_a': torch.FloatTensor(pad([sample['q_in_a'] for sample in res_batch], q_max_len, 0.0)),
         'ans_len': torch.LongTensor([sample['ans_len'] for sample in res_batch]),
 
-        'delta_rouge': torch.sparse_coo_tensor(*gen_sparse_indices(res_batch),
+        'delta_rouge': torch.sparse_coo_tensor(*title_summ_gen_sparse_indices(res_batch),
                                                size=[len(res_batch), c_max_len, c_max_len]).to_dense(),
 
       })

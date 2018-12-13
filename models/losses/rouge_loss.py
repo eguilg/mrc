@@ -87,5 +87,5 @@ class RougeLoss(nn.Module):
 		return total_loss / delta_rouge.size(0)
 
 	def forward(self, out_matix, delta_rouge):
-
+		# return self.kl_div(out_matix,delta_rouge)
 		return self.margin_ranking(out_matix, delta_rouge)
