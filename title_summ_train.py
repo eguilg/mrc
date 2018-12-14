@@ -2,7 +2,6 @@
 import multiprocessing as mp
 import matplotlib.pyplot as plt
 import time
-from rouge import Rouge
 
 import numpy as np
 import torch
@@ -20,6 +19,8 @@ from models.losses.obj_detection_loss import ObjDetectionLoss
 from models.rc_model import RCModel
 from utils.osutils import *
 from metrics import RougeL
+from rouge import Rouge
+from nltk.translate.bleu_score import sentence_bleu
 
 import postprocess
 
@@ -307,6 +308,8 @@ if __name__ == '__main__':
           val_end_hit = 0
           rl = RougeL()
           ms_rouge_scores = []
+          nltk_bleu_scores = []
+
           with torch.no_grad():
             model.eval()
             for val_batch in dev_loader:
@@ -390,8 +393,16 @@ if __name__ == '__main__':
                   pred_ans = ''.join(pred_anss)
                   rl.add_inst(pred_ans, gt_ans)
 
-                  rouge_score = ms_rouge_eval.get_scores(hyps=[' '.join(pred_ans)], refs=[' '.join(list(gt_ans))])
+                  rouge_score = ms_rouge_eval.get_scores(hyps=[' '.join(list(pred_ans))], refs=[' '.join(list(gt_ans))])
                   ms_rouge_scores.append(rouge_score[0])
+                  # TODO:
+                  bleu1_score = sentence_bleu(references=[list(gt_ans)], hypothesis=list(pred_ans),
+                                              weights=(1, 0, 0, 0))
+                  bleu2_score = sentence_bleu(references=[list(gt_ans)], hypothesis=list(pred_ans),
+                                              weights=(0.5, 0.5, 0.0, 0.0))
+                  bleu4_score = sentence_bleu(references=[list(gt_ans)], hypothesis=list(pred_ans),
+                                              weights=(0.25, 0.25, 0.25, 0.25))
+                  nltk_bleu_scores.append((bleu1_score, bleu2_score, bleu4_score))
 
               elif mode == MODE_PTR:
                 for pos1, pos2, sample in zip(batch_pos1, batch_pos2, val_batch['raw']):
@@ -419,6 +430,13 @@ if __name__ == '__main__':
                         val_ans_len_hit / val_sample_num))
 
           print('RougeL: {: .4f}'.format(rouge_score))
+          if len(nltk_bleu_scores) > 0:
+            bleu1_score = np.mean([score[0] for score in nltk_bleu_scores])
+            bleu2_score = np.mean([score[1] for score in nltk_bleu_scores])
+            bleu4_score = np.mean([score[2] for score in nltk_bleu_scores])
+            print(
+              'NLTK Bleu-1: {: .4f}, Bleu-2: {: .4f}, Bleu-4: {: .4f}'.format(bleu1_score, bleu2_score, bleu4_score))
+
           if len(ms_rouge_scores) > 0:
             ms_rouge1 = np.mean([score["rouge-1"]['f'] for score in ms_rouge_scores])
             ms_rouge2 = np.mean([score["rouge-2"]['f'] for score in ms_rouge_scores])
