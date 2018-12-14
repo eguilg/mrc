@@ -2,6 +2,7 @@
 import multiprocessing as mp
 import matplotlib.pyplot as plt
 import time
+from rouge import Rouge
 
 import numpy as np
 import torch
@@ -63,12 +64,13 @@ SEED = 502
 EPOCH = 150
 BATCH_SIZE = 64
 
-show_plt = True
+show_plt = False
 on_windows = True
 
 from config.config import MODE_OBJ, MODE_MRT, MODE_PTR
 
 mode = MODE_MRT
+ms_rouge_eval = Rouge()
 
 if __name__ == '__main__':
   print(cur_cfg.model_params)
@@ -116,7 +118,7 @@ if __name__ == '__main__':
   train_dataset = TitleSummDataset(train_file, transform, use_rouge=True, max_size=None)  # FIXME:
   dev_dataset = TitleSummDataset(val_file, transform, use_rouge=True, max_size=None)
 
-  num_workers=0
+  num_workers = 0
   # if on_windows:
   #   BATCH_SIZE = 64
   #   num_workers = 0
@@ -304,6 +306,7 @@ if __name__ == '__main__':
           val_start_hit = 0
           val_end_hit = 0
           rl = RougeL()
+          ms_rouge_scores = []
           with torch.no_grad():
             model.eval()
             for val_batch in dev_loader:
@@ -372,7 +375,7 @@ if __name__ == '__main__':
 
               if mode == MODE_MRT:
                 for pos1, pos2, sample, conf in zip(batch_pos1, batch_pos2, val_batch['raw'], confidence):
-                  ori_title=''.join(sample['ori_title_tokens'])
+                  ori_title = ''.join(sample['ori_title_tokens'])
                   gt_ans = sample['answer']
 
                   pred_anss = []
@@ -381,11 +384,15 @@ if __name__ == '__main__':
                       break
 
                     pred_ans = postprocess.gen_ans(p1, p2, sample, key='ori_title_tokens', post_process=False)
-                    pred_anss.append((pred_ans,p1))
+                    pred_anss.append((pred_ans, p1))
 
-                  pred_anss=[t for t,_ in sorted(pred_anss,key=lambda d:d[1])]
+                  pred_anss = [t for t, _ in sorted(pred_anss, key=lambda d: d[1])]
                   pred_ans = ''.join(pred_anss)
                   rl.add_inst(pred_ans, gt_ans)
+
+                  rouge_score = ms_rouge_eval.get_scores(hyps=[' '.join(pred_ans)], refs=[' '.join(list(gt_ans))])
+                  ms_rouge_scores.append(rouge_score[0])
+
               elif mode == MODE_PTR:
                 for pos1, pos2, sample in zip(batch_pos1, batch_pos2, val_batch['raw']):
                   gt_ans = sample['answer']
@@ -410,7 +417,13 @@ if __name__ == '__main__':
                         val_start_hit / val_sample_num,
                         val_end_hit / val_sample_num,
                         val_ans_len_hit / val_sample_num))
+
           print('RougeL: {: .4f}'.format(rouge_score))
+          if len(ms_rouge_scores) > 0:
+            ms_rouge1 = np.mean([score["rouge-1"]['f'] for score in ms_rouge_scores])
+            ms_rouge2 = np.mean([score["rouge-2"]['f'] for score in ms_rouge_scores])
+            ms_rougeL = np.mean([score["rouge-l"]['f'] for score in ms_rouge_scores])
+            print('MS Rouge-1: {: .4f}, Rouge-2: {: .4f}, Rouge-L: {: .4f}'.format(ms_rouge1, ms_rouge2, ms_rougeL))
 
           print('-' * 80)
           if state is None:
