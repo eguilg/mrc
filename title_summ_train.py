@@ -74,7 +74,7 @@ if __name__ == '__main__':
   print(cur_cfg.model_params)
   data_root_folder = './title_data'
   corpus_file = os.path.join(data_root_folder, 'corpus.txt')
-  train_file = os.path.join(data_root_folder, 'preprocessed', 'val.preprocessed.json')  # FIXME:
+  train_file = os.path.join(data_root_folder, 'preprocessed', 'train.preprocessed.json')  # FIXME:
   val_file = os.path.join(data_root_folder, 'preprocessed', 'val.preprocessed.json')
 
   model_dir = os.path.join(data_root_folder, 'models')
@@ -113,8 +113,8 @@ if __name__ == '__main__':
   }
 
   transform = TitleSummTransform(jieba_base_v, jieba_sgns_v, jieba_flag_v)
-  train_dataset = TitleSummDataset(train_file, transform, use_rouge=True, max_size=5000)  # FIXME:
-  dev_dataset = TitleSummDataset(val_file, transform, use_rouge=True, max_size=5000)
+  train_dataset = TitleSummDataset(train_file, transform, use_rouge=True, max_size=None)  # FIXME:
+  dev_dataset = TitleSummDataset(val_file, transform, use_rouge=True, max_size=None)
 
   num_workers=0
   # if on_windows:
@@ -191,12 +191,12 @@ if __name__ == '__main__':
     global_step = 0
 
   grade = 0
-  print_every = 50
+  print_every = 200
   last_val_step = global_step
   if on_windows:
     val_every = [1, 70, 50, 35]
   else:
-    val_every = [500, 700, 500, 350]
+    val_every = [2000, 700, 500, 350]
   drop_lr_frq = 1
   # val_every_min = 350
   # val_every = 1000
@@ -372,6 +372,7 @@ if __name__ == '__main__':
 
               if mode == MODE_MRT:
                 for pos1, pos2, sample, conf in zip(batch_pos1, batch_pos2, val_batch['raw'], confidence):
+                  ori_title=''.join(sample['ori_title_tokens'])
                   gt_ans = sample['answer']
 
                   pred_anss = []
