@@ -374,7 +374,7 @@ if __name__ == '__main__':
 
               _, _, _, ans_len_gt, delta_rouge = extra_targets
 
-              out, ans_len_logits = model(*inputs)
+              out, ans_len_logits,c_in_a = model(*inputs)
               ans_len_prob = F.softmax(ans_len_logits, dim=-1)
 
               ans_len_hit = (torch.max(ans_len_prob, -1)[1] == ans_len_gt).sum().item()

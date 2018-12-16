@@ -130,7 +130,7 @@ if __name__ == '__main__':
 
   model_params = cur_cfg.model_params
 
-  model = RCModel(model_params, embed_lists, mode=mode, emb_trainable=True)
+  model = RCModel(model_params, embed_lists, mode=mode, emb_trainable=False, is_squad=True)
   model = model.cuda()
   if mode == MODE_MRT:
     criterion_main = RougeLoss().cuda()
@@ -214,7 +214,7 @@ if __name__ == '__main__':
 
         model.train()
         optimizer.zero_grad()
-        out, extra_outputs = model(*inputs,is_squad=True)
+        out, extra_outputs = model(*inputs, is_squad=True)
         if mode == MODE_OBJ:
           widths, centers, scores, extra_targets = targets
         else:
@@ -283,7 +283,7 @@ if __name__ == '__main__':
           val_step = 0
           val_sample_num = 0
           val_ans_len_hit = 0
-          val_impossible_hit=0
+          val_impossible_hit = 0
           val_start_hit = 0
           val_end_hit = 0
           rl = RougeL()
@@ -304,7 +304,7 @@ if __name__ == '__main__':
 
               _, _, _, ans_len_gt, is_impossible_gt, delta_rouge = extra_targets
 
-              out, ans_len_logits,impossible_logits = model(*inputs,is_squad=True)
+              out, ans_len_logits, impossible_logits = model(*inputs, is_squad=True)
 
               ans_len_prob = F.softmax(ans_len_logits, dim=-1)
               impossible_prob = F.softmax(impossible_logits, dim=-1)
@@ -370,7 +370,7 @@ if __name__ == '__main__':
                     if c < 0.8:
                       break
 
-                    pred_ans = postprocess.gen_ans(p1, p2, sample,  post_process=False)
+                    pred_ans = postprocess.gen_ans(p1, p2, sample, post_process=False)
                     pred_anss.append((pred_ans, p1))
 
                   pred_anss = [t for t, _ in sorted(pred_anss, key=lambda d: d[1])]
@@ -391,12 +391,12 @@ if __name__ == '__main__':
               elif mode == MODE_PTR:
                 for pos1, pos2, sample in zip(batch_pos1, batch_pos2, val_batch['raw']):
                   gt_ans = sample['answer']
-                  pred_ans = postprocess.gen_ans(pos1, pos2, sample,  post_process=False)
+                  pred_ans = postprocess.gen_ans(pos1, pos2, sample, post_process=False)
                   rl.add_inst(pred_ans, gt_ans)
 
               val_loss_total += val_loss.item()
               val_ans_len_hit += ans_len_hit
-              val_impossible_hit +=impossible_hit
+              val_impossible_hit += impossible_hit
               val_start_hit += 0
               val_end_hit += 0
               val_sample_num += ans_len_logits.size(0)
@@ -414,7 +414,7 @@ if __name__ == '__main__':
                         val_start_hit / val_sample_num,
                         val_end_hit / val_sample_num,
                         val_ans_len_hit / val_sample_num,
-                        val_impossible_hit/val_sample_num
+                        val_impossible_hit / val_sample_num
                         ))
 
           print('RougeL: {: .4f}'.format(rouge_score))

@@ -10,7 +10,7 @@ from config.config import MODE_OBJ, MODE_MRT, MODE_PTR
 
 
 class RCModel(nn.Module):
-  def __init__(self, param_dict, embed_lists, normalize=True, mode=MODE_PTR, emb_trainable=False):
+  def __init__(self, param_dict, embed_lists, normalize=True, mode=MODE_PTR, emb_trainable=False,is_squad=False):
     super(RCModel, self).__init__()
     # Store config
     self.param_dict = param_dict
@@ -21,6 +21,8 @@ class RCModel(nn.Module):
     self.backbone_kwarg = param_dict['backbone_kwarg']
     self.ptr_kwarg = param_dict['ptr_kwarg']
     self.mode = mode
+
+    self.is_squad=is_squad
 
     try:
       self.backbone_type = BACKBONE_TYPES[param_dict['backbone_type']]
@@ -99,11 +101,12 @@ class RCModel(nn.Module):
       bias=True
     )
 
-    self.is_impossible_net = nn.Linear(
-      in_features=2 * self.hidden_size,
-      out_features=2,
-      bias=True
-    )
+    if self.is_squad:
+      self.is_impossible_net = nn.Linear(
+        in_features=2 * self.hidden_size,
+        out_features=2,
+        bias=True
+      )
 
   def reset_embeddings(self, embed_lists):
     self.merged_embeddings_jieba = MergedEmbedding(embed_lists['jieba'])
@@ -114,7 +117,7 @@ class RCModel(nn.Module):
     }
     self.doc_input_size = self.merged_embeddings['jieba'].output_dim + self.num_features
 
-  def forward(self, x1_list, x1_f_list, x1_mask, x2_list, x2_f_list, x2_mask, method, is_squad=False):
+  def forward(self, x1_list, x1_f_list, x1_mask, x2_list, x2_f_list, x2_mask, method):
     """Inputs:
     x1_list = document word indices of different vocabs		list([batch * len_d])
     x1_f_list = document word features indices				list([batch * len_d])
@@ -154,17 +157,18 @@ class RCModel(nn.Module):
       qtype_vec = self.qtype_net(q[:, -1, :])
       c_in_a = self.isin_net(c).squeeze(-1)
       q_in_a = self.isin_net(q).squeeze(-1)
-      if is_squad:
+      if self.is_squad:
         impossible_logits = self.is_impossible_net(c[:, -1, :])
         return out, (qtype_vec, c_in_a, q_in_a, ans_len_logits, impossible_logits)
       else:
         return out, (qtype_vec, c_in_a, q_in_a, ans_len_logits)
     else:
-      if is_squad:
+      if self.is_squad:
         impossible_logits = self.is_impossible_net(c[:, -1, :])
         return out, ans_len_logits,impossible_logits
       else:
-        return out, ans_len_logits
+        c_in_a = self.isin_net(c).squeeze(-1)
+        return out, ans_len_logits,c_in_a
 
   @staticmethod
   def decode(score_s, score_e, top_n=1, max_len=None):

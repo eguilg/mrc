@@ -65,7 +65,7 @@ SEED = 502
 EPOCH = 150
 BATCH_SIZE = 64
 
-show_plt = True
+show_plt = False
 on_windows = True
 
 from config.config import MODE_OBJ, MODE_MRT, MODE_PTR
@@ -96,10 +96,15 @@ if __name__ == '__main__':
   jieba_base_v = Vocab(os.path.join(data_root_folder, 'vocab', 'title_summ.vocab.pkl'),
                        os.path.join(data_root_folder, 'vocab', 'title_summ.emb.pkl'))
 
-  jieba_sgns_v = Vocab(os.path.join(data_root_folder, 'vocab', 'useless.vocab.pkl'),
-                       os.path.join(data_root_folder, 'vocab', 'useless.emb.pkl'))
-  jieba_flag_v = Vocab(os.path.join(data_root_folder, 'vocab', 'useless.vocab.pkl'),
-                       os.path.join(data_root_folder, 'vocab', 'useless.emb.pkl'))
+  jieba_sgns_v = Vocab(os.path.join(data_root_folder, 'vocab', 'title_summ.vocab.pkl'),
+                       os.path.join(data_root_folder, 'vocab', 'title_summ.emb.pkl'))
+  jieba_flag_v = Vocab(os.path.join(data_root_folder, 'vocab', 'title_summ.vocab.pkl'),
+                       os.path.join(data_root_folder, 'vocab', 'title_summ.emb.pkl'))
+
+  # jieba_sgns_v = Vocab(os.path.join(data_root_folder, 'vocab', 'useless.vocab.pkl'),
+  #                      os.path.join(data_root_folder, 'vocab', 'useless.emb.pkl'))
+  # jieba_flag_v = Vocab(os.path.join(data_root_folder, 'vocab', 'useless.vocab.pkl'),
+  #                      os.path.join(data_root_folder, 'vocab', 'useless.emb.pkl'))
 
   trainset_roots = [
     os.path.join(data_root_folder, 'val.txt')
@@ -293,6 +298,7 @@ if __name__ == '__main__':
           val_start_hit = 0
           val_end_hit = 0
           rl = RougeL()
+          rl_cina = RougeL()
           ms_rouge_scores = []
           nltk_bleu_scores = []
 
@@ -310,7 +316,8 @@ if __name__ == '__main__':
 
               _, _, _, ans_len_gt, delta_rouge = extra_targets
 
-              out, ans_len_logits = model(*inputs)
+              out, ans_len_logits, c_in_a = model(*inputs)
+
               ans_len_prob = F.softmax(ans_len_logits, dim=-1)
 
               ans_len_hit = (torch.max(ans_len_prob, -1)[1] == ans_len_gt).sum().item()
@@ -341,7 +348,7 @@ if __name__ == '__main__':
               ends = ends.detach().cpu()
 
               if show_plt and val_step % 1000 == 0:
-                out= out.detach().cpu()
+                out = out.detach().cpu()
                 for o, sample in zip(out, val_batch['raw']):
                   dim = o.size(0)
                   rouge_matrix = np.zeros([dim, dim])
@@ -364,10 +371,16 @@ if __name__ == '__main__':
                   plt.show()
 
               if mode == MODE_MRT:
-                for pos1, pos2, sample, conf in zip(batch_pos1, batch_pos2, val_batch['raw'], confidence):
+                c_in_a = c_in_a.detach().cpu()
+
+                for pos1, pos2, cina, sample, conf in zip(batch_pos1, batch_pos2, c_in_a, val_batch['raw'], confidence):
                   ori_title = ''.join(sample['ori_title_tokens'])
                   gt_ans = sample['answer']
 
+                  c_in_a_pred_ans = ''
+                  for idx, ccc in enumerate(cina):
+                    if ccc > 0:
+                      c_in_a_pred_ans += sample['ori_title_tokens'][idx]
                   pred_anss = []
                   for p1, p2, c in zip(pos1, pos2, conf):
                     if c < 0.8:
@@ -379,10 +392,10 @@ if __name__ == '__main__':
                   pred_anss = [t for t, _ in sorted(pred_anss, key=lambda d: d[1])]
                   pred_ans = ''.join(pred_anss)
                   rl.add_inst(pred_ans, gt_ans)
+                  rl_cina.add_inst(c_in_a_pred_ans, gt_ans)
 
                   rouge_score = ms_rouge_eval.get_scores(hyps=[' '.join(list(pred_ans))], refs=[' '.join(list(gt_ans))])
                   ms_rouge_scores.append(rouge_score[0])
-                  # TODO:
                   bleu1_score = sentence_bleu(references=[list(gt_ans)], hypothesis=list(pred_ans),
                                               weights=(1, 0, 0, 0))
                   bleu2_score = sentence_bleu(references=[list(gt_ans)], hypothesis=list(pred_ans),
@@ -416,7 +429,7 @@ if __name__ == '__main__':
                         val_end_hit / val_sample_num,
                         val_ans_len_hit / val_sample_num))
 
-          print('RougeL: {: .4f}'.format(rouge_score))
+          print('RougeL: {: .4f}, RougeL C in Ans: {: .4f} '.format(rouge_score, rl_cina.get_score()))
           if len(nltk_bleu_scores) > 0:
             bleu1_score = np.mean([score[0] for score in nltk_bleu_scores])
             bleu2_score = np.mean([score[1] for score in nltk_bleu_scores])
