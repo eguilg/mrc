@@ -10,7 +10,7 @@ from config.config import MODE_OBJ, MODE_MRT, MODE_PTR
 
 
 class RCModel(nn.Module):
-  def __init__(self, param_dict, embed_lists, normalize=True, mode=MODE_PTR,emb_trainable=False):
+  def __init__(self, param_dict, embed_lists, normalize=True, mode=MODE_PTR, emb_trainable=False):
     super(RCModel, self).__init__()
     # Store config
     self.param_dict = param_dict
@@ -35,8 +35,8 @@ class RCModel(nn.Module):
     except KeyError:
       raise KeyError('Wrong pointer type')
 
-    self.merged_embeddings_jieba = MergedEmbedding(embed_lists['jieba'],trainable=emb_trainable)
-    self.merged_embeddings_pyltp = MergedEmbedding(embed_lists['pyltp'],trainable=emb_trainable)
+    self.merged_embeddings_jieba = MergedEmbedding(embed_lists['jieba'], trainable=emb_trainable)
+    self.merged_embeddings_pyltp = MergedEmbedding(embed_lists['pyltp'], trainable=emb_trainable)
     self.merged_embeddings = {
       'jieba': self.merged_embeddings_jieba,
       'pyltp': self.merged_embeddings_pyltp
@@ -99,6 +99,12 @@ class RCModel(nn.Module):
       bias=True
     )
 
+    self.is_impossible_net = nn.Linear(
+      in_features=2 * self.hidden_size,
+      out_features=2,
+      bias=True
+    )
+
   def reset_embeddings(self, embed_lists):
     self.merged_embeddings_jieba = MergedEmbedding(embed_lists['jieba'])
     self.merged_embeddings_pyltp = MergedEmbedding(embed_lists['pyltp'])
@@ -108,7 +114,7 @@ class RCModel(nn.Module):
     }
     self.doc_input_size = self.merged_embeddings['jieba'].output_dim + self.num_features
 
-  def forward(self, x1_list, x1_f_list, x1_mask, x2_list, x2_f_list, x2_mask, method):
+  def forward(self, x1_list, x1_f_list, x1_mask, x2_list, x2_f_list, x2_mask, method, is_squad=False):
     """Inputs:
     x1_list = document word indices of different vocabs		list([batch * len_d])
     x1_f_list = document word features indices				list([batch * len_d])
@@ -148,9 +154,17 @@ class RCModel(nn.Module):
       qtype_vec = self.qtype_net(q[:, -1, :])
       c_in_a = self.isin_net(c).squeeze(-1)
       q_in_a = self.isin_net(q).squeeze(-1)
-      return out, (qtype_vec, c_in_a, q_in_a, ans_len_logits)
+      if is_squad:
+        impossible_logits = self.is_impossible_net(c[:, -1, :])
+        return out, (qtype_vec, c_in_a, q_in_a, ans_len_logits, impossible_logits)
+      else:
+        return out, (qtype_vec, c_in_a, q_in_a, ans_len_logits)
     else:
-      return out, ans_len_logits
+      if is_squad:
+        impossible_logits = self.is_impossible_net(c[:, -1, :])
+        return out, ans_len_logits,impossible_logits
+      else:
+        return out, ans_len_logits
 
   @staticmethod
   def decode(score_s, score_e, top_n=1, max_len=None):
@@ -199,7 +213,6 @@ class RCModel(nn.Module):
     del score_s, score_e
     return pred_s, pred_e, pred_score
 
-
   @staticmethod
   def decode_outer(outer, top_n=1, max_len=None):
     """Take argmax of constrained score_s * score_e.
@@ -230,16 +243,16 @@ class RCModel(nn.Module):
         idx_sort = np.argsort(-scores_flat)
       else:
         ## FIXME: 针对多答案的临时魔改: 每次选中一个prob最大的答案，然后把临近的±3行3列全都置零
-        raw_score=scores.copy()
-        idx_sort=[]
+        raw_score = scores.copy()
+        idx_sort = []
         for _ in range(top_n):
-          idx=np.argmax(scores_flat)
+          idx = np.argmax(scores_flat)
           idx_sort.append(idx)
-          s,e= np.unravel_index(idx, scores.shape)
+          s, e = np.unravel_index(idx, scores.shape)
           # s,e=s[0],e[0]
-          scores[:s+1,e:]=0
-          scores[s:e+1,:]=0
-          scores[:,s:e+1]=0
+          scores[:s + 1, e:] = 0
+          scores[s:e + 1, :] = 0
+          scores[:, s:e + 1] = 0
           scores_flat = scores.flatten()
       s_idx, e_idx = np.unravel_index(idx_sort, scores.shape)
 

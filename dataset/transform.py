@@ -388,12 +388,16 @@ class TitleSummTransform(object):
   sgns_vocab = {}
   flag_vocab = {}
 
-  def __init__(self, jieba_base_v=None, jieba_sgns_v=None, jieba_flag_v=None):
+  def __init__(self, jieba_base_v=None, jieba_sgns_v=None, jieba_flag_v=None,
+               max_len=64):
     self.base_vocab['jieba'] = jieba_base_v
     self.sgns_vocab['jieba'] = jieba_sgns_v
     self.flag_vocab['jieba'] = jieba_flag_v
 
+    self.max_len = max_len
+
   def __call__(self, item, method):
+    item['ori_title_tokens'] = item['ori_title_tokens'][:self.max_len]
     res = {
       'raw': item,
       'method': method,
@@ -421,9 +425,7 @@ class TitleSummTransform(object):
       res.update({
         'start': item['answer_token_start'],
         'end': item['answer_token_end'],
-        # 'r_starts': item['delta_token_starts'],
-        # 'r_ends': item['delta_token_ends'],
-        # 'r_scores': item['delta_rouges'],
+
         'qtype_vec': fake_qtype_vec,
         'c_in_a': [1.0 if w in ''.join(item['short_title_tokens']) else 0.0 for w in item['ori_title_tokens']],
         'q_in_a': [1.0 if w in ''.join(item['short_title_tokens']) else 0.0 for w in item['ori_title_tokens']],
@@ -542,6 +544,182 @@ class TitleSummTransform(object):
         else:
           delta_rouge = None
       targets = (y_start, y_end, (qtype_vec, c_in_a, q_in_a, ans_len, delta_rouge))
+      return inputs, targets
+    else:
+      return inputs, None
+
+
+class SquadTransform(object):
+  base_vocab = {}
+  sgns_vocab = {}
+  flag_vocab = {}
+
+  def __init__(self, jieba_base_v=None, jieba_sgns_v=None, jieba_flag_v=None,
+               c_max_len=384, q_max_len=64):
+    self.base_vocab['jieba'] = jieba_base_v
+    self.sgns_vocab['jieba'] = jieba_sgns_v
+    self.flag_vocab['jieba'] = jieba_flag_v
+
+    self.c_max_len = c_max_len
+    self.q_max_len = q_max_len
+
+  def __call__(self, item, method):
+    item['article_tokens'] = item['article_tokens'][:self.c_max_len]
+    item['question_tokens'] = item['question_tokens'][:self.q_max_len]
+
+    res = {
+      'raw': item,
+      'method': method,
+      'c_base_idx': self.base_vocab[method].words_to_idxs(item['article_tokens']),
+      'c_sgns_idx': self.sgns_vocab[method].words_to_idxs(item['article_tokens']),
+      'c_flag_idx': self.flag_vocab[method].words_to_idxs(item['article_tokens']),
+      'c_in_q': [1.0 if w in ''.join(item['question_tokens']) else 0.0 for w in item['article_tokens']],
+
+      'c_mask': [0] * len(item['article_tokens']),
+      'c_len': len(item['article_tokens']),
+
+      'q_base_idx': self.base_vocab[method].words_to_idxs(item['question_tokens']),
+      'q_sgns_idx': self.sgns_vocab[method].words_to_idxs(item['question_tokens']),
+      'q_flag_idx': self.flag_vocab[method].words_to_idxs(item['question_tokens']),
+      'q_in_c': [1.0 if w in ''.join(item['article_tokens']) else 0.0 for w in item['question_tokens']],
+
+      'q_mask': [0] * len(item['question_tokens']),
+      'q_len': len(item['question_tokens']),
+    }
+    if res['q_len'] == 0:
+      res['q_mask'] = [0]
+    if 'answer_token_start' in item:
+      fake_qtype_vec = np.zeros(10)
+      fake_qtype_vec[0] = 1.0
+
+      res.update({
+        'start': item['answer_token_start'],
+        'end': item['answer_token_end'],
+        'is_impossible': item['is_impossible'],
+
+        'qtype_vec': fake_qtype_vec,
+        'c_in_a': [1.0 if w in ''.join(item['answer_tokens']) else 0.0 for w in item['article_tokens']],
+        'q_in_a': [1.0 if w in ''.join(item['answer_tokens']) else 0.0 for w in item['question_tokens']],
+        'ans_len': min(20, len(item['answer_tokens']))
+      })
+    return res
+
+  def batchify(self, res_batch):
+    c_lens = [sample['c_len'] for sample in res_batch]
+    q_lens = [sample['q_len'] for sample in res_batch]
+
+    c_max_len = 32 * (max(c_lens) // 32) + 32
+    q_max_len = max(q_lens)
+    m = res_batch[0]['method']
+    batch = {
+      'raw': [sample['raw'] for sample in res_batch],
+      'method': m,
+      'c_base_idx': torch.LongTensor(
+        pad([sample['c_base_idx'] for sample in res_batch], c_max_len, self.base_vocab[m].pad_idx)),
+      'c_sgns_idx': torch.LongTensor(
+        pad([sample['c_sgns_idx'] for sample in res_batch], c_max_len, self.sgns_vocab[m].pad_idx)),
+      'c_flag_idx': torch.LongTensor(
+        pad([sample['c_flag_idx'] for sample in res_batch], c_max_len, self.flag_vocab[m].pad_idx)),
+      'c_in_q': torch.FloatTensor(pad([sample['c_in_q'] for sample in res_batch], c_max_len, 0.0)),
+
+      'c_mask': torch.ByteTensor(pad([sample['c_mask'] for sample in res_batch], c_max_len, 1)),
+      'c_lens': torch.LongTensor(c_lens),
+
+      'q_base_idx': torch.LongTensor(
+        pad([sample['q_base_idx'] for sample in res_batch], q_max_len, self.base_vocab[m].pad_idx)),
+      'q_sgns_idx': torch.LongTensor(
+        pad([sample['q_sgns_idx'] for sample in res_batch], q_max_len, self.sgns_vocab[m].pad_idx)),
+      'q_flag_idx': torch.LongTensor(
+        pad([sample['q_flag_idx'] for sample in res_batch], q_max_len, self.flag_vocab[m].pad_idx)),
+      'q_in_c': torch.FloatTensor(pad([sample['q_in_c'] for sample in res_batch], q_max_len, 0.0)),
+
+      'q_mask': torch.ByteTensor(pad([sample['q_mask'] for sample in res_batch], q_max_len, 1)),
+      'q_lens': torch.LongTensor(q_lens)
+    }
+    if 'start' in res_batch[0]:
+      batch.update({
+        'start': torch.LongTensor([sample['start'] for sample in res_batch]),
+        'end': torch.LongTensor([sample['end'] for sample in res_batch]),
+        'qtype_vec': torch.FloatTensor([sample['qtype_vec'] for sample in res_batch]),
+        'is_impossible': torch.LongTensor([sample['is_impossible'] for sample in res_batch]),
+
+        'c_in_a': torch.FloatTensor(pad([sample['c_in_a'] for sample in res_batch], c_max_len, 0.0)),
+        'q_in_a': torch.FloatTensor(pad([sample['q_in_a'] for sample in res_batch], q_max_len, 0.0)),
+        'ans_len': torch.LongTensor([sample['ans_len'] for sample in res_batch]),
+
+        'delta_rouge': torch.sparse_coo_tensor(*gen_sparse_indices(res_batch),
+                                               size=[len(res_batch), c_max_len, c_max_len]).to_dense(),
+
+      })
+
+    return batch
+
+  @staticmethod
+  def prepare_inputs(batch, rouge=False, cuda=True):
+    x1_keys = [
+      'c_base_idx',
+      'c_sgns_idx',
+      'c_flag_idx'
+    ]
+    x1_f_keys = [
+      'c_in_q'
+    ]
+
+    x2_keys = [
+      'q_base_idx',
+      'q_sgns_idx',
+      'q_flag_idx'
+    ]
+    x2_f_keys = [
+      'q_in_c'
+    ]
+
+    if cuda:
+      x1_list = [batch[key].cuda() for key in x1_keys]
+      x1_f_list = [batch[key].cuda() for key in x1_f_keys]
+      x1_mask = batch['c_mask'].cuda()
+      x2_list = [batch[key].cuda() for key in x2_keys]
+      x2_f_list = [batch[key].cuda() for key in x2_f_keys]
+      x2_mask = batch['q_mask'].cuda()
+    else:
+      x1_list = [batch[key] for key in x1_keys]
+      x1_f_list = [batch[key] for key in x1_f_keys]
+      x1_mask = batch['c_mask']
+      x2_list = [batch[key] for key in x2_keys]
+      x2_f_list = [batch[key] for key in x2_f_keys]
+      x2_mask = batch['q_mask']
+
+    method = batch['method']
+
+    inputs = [x1_list, x1_f_list, x1_mask, x2_list, x2_f_list, x2_mask, method]
+    if 'start' in batch:
+      if cuda:
+        y_start = batch['start'].cuda()
+        y_end = batch['end'].cuda()
+        is_impossible = batch['is_impossible'].cuda()
+
+        qtype_vec = batch['qtype_vec'].cuda()
+        c_in_a = batch['c_in_a'].cuda()
+        q_in_a = batch['q_in_a'].cuda()
+        ans_len = batch['ans_len'].cuda()
+        if rouge:
+          delta_rouge = batch['delta_rouge'].cuda()
+        else:
+          delta_rouge = None
+      else:
+        y_start = batch['start']
+        y_end = batch['end']
+        is_impossible = batch['is_impossible']
+
+        qtype_vec = batch['qtype_vec']
+        c_in_a = batch['c_in_a']
+        q_in_a = batch['q_in_a']
+        ans_len = batch['ans_len']
+        if rouge:
+          delta_rouge = batch['delta_rouge']
+        else:
+          delta_rouge = None
+      targets = (y_start, y_end, (qtype_vec, c_in_a, q_in_a, ans_len, is_impossible, delta_rouge))
       return inputs, targets
     else:
       return inputs, None

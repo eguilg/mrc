@@ -11,8 +11,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from config import config
-from dataset import (TitleSummDataset, Vocab,
-                     TitleSummTransform, MethodBasedBatchSampler)
+from dataset import (SquadDataset, SquadTransform, Vocab)
 from models.losses import PointerLoss, RougeLoss
 from models.losses.obj_detection_loss import ObjDetectionLoss
 
@@ -63,22 +62,21 @@ cur_cfg = bidaf3
 
 SEED = 502
 EPOCH = 150
-BATCH_SIZE = 64
+BATCH_SIZE = 35
 
-show_plt = True
+show_plt = False
 on_windows = True
 
 from config.config import MODE_OBJ, MODE_MRT, MODE_PTR
 
-mode = MODE_MRT
+mode = MODE_PTR
 ms_rouge_eval = Rouge()
 
 if __name__ == '__main__':
   print(cur_cfg.model_params)
-  data_root_folder = './title_data'
-  corpus_file = os.path.join(data_root_folder, 'corpus.txt')
-  train_file = os.path.join(data_root_folder, 'preprocessed', 'train.preprocessed.json')  # FIXME:
-  val_file = os.path.join(data_root_folder, 'preprocessed', 'val.preprocessed.json')
+  data_root_folder = './squad_data'
+  train_file = os.path.join(data_root_folder, 'preprocessed', 'train-v2.0.preprocessed.json')
+  val_file = os.path.join(data_root_folder, 'preprocessed', 'dev-v2.0.preprocessed.json')
 
   model_dir = os.path.join(data_root_folder, 'models')
   mkdir_if_missing(model_dir)
@@ -93,8 +91,8 @@ if __name__ == '__main__':
   model_path = os.path.join(model_dir, model_name + '.state')
   print('Model path:', model_path)
 
-  jieba_base_v = Vocab(os.path.join(data_root_folder, 'vocab', 'title_summ.vocab.pkl'),
-                       os.path.join(data_root_folder, 'vocab', 'title_summ.emb.pkl'))
+  jieba_base_v = Vocab(os.path.join(data_root_folder, 'vocab', 'squad.vocab.pkl'),
+                       os.path.join(data_root_folder, 'vocab', 'squad.emb.pkl'))
 
   jieba_sgns_v = Vocab(os.path.join(data_root_folder, 'vocab', 'useless.vocab.pkl'),
                        os.path.join(data_root_folder, 'vocab', 'useless.emb.pkl'))
@@ -110,21 +108,15 @@ if __name__ == '__main__':
     'pyltp': []
   }
 
-  transform = TitleSummTransform(jieba_base_v, jieba_sgns_v, jieba_flag_v)
-  train_dataset = TitleSummDataset(train_file, transform, use_rouge=True, max_size=None)  # FIXME:
-  dev_dataset = TitleSummDataset(val_file, transform, use_rouge=True, max_size=None)
+  transform = SquadTransform(jieba_base_v, jieba_sgns_v, jieba_flag_v)
+  train_dataset = SquadDataset(train_file, transform, use_rouge=True, max_size=None)
+  dev_dataset = SquadDataset(val_file, transform, use_rouge=True, max_size=None)
 
   num_workers = 0
-  # if on_windows:
-  #   BATCH_SIZE = 64
-  #   num_workers = 0
-  # else:
-  #   num_workers = max(4, mp.cpu_count())
 
   train_loader = DataLoader(
     dataset=train_dataset,
     batch_size=BATCH_SIZE,
-    # batch_sampler=MethodBasedBatchSampler(data_for_train, batch_size=BATCH_SIZE, seed=SEED),
     num_workers=num_workers,
     collate_fn=transform.batchify,
   )
@@ -132,7 +124,6 @@ if __name__ == '__main__':
   dev_loader = DataLoader(
     dataset=dev_dataset,
     batch_size=BATCH_SIZE,
-    # batch_sampler=MethodBasedBatchSampler(data_for_dev, batch_size=BATCH_SIZE, shuffle=False),
     num_workers=num_workers,
     collate_fn=transform.batchify
   )
@@ -192,7 +183,7 @@ if __name__ == '__main__':
   print_every = 200
   last_val_step = global_step
   if on_windows:
-    val_every = [1, 70, 50, 35]
+    val_every = [200, 70, 50, 35]
   else:
     val_every = [2000, 700, 500, 350]
   drop_lr_frq = 1
@@ -223,14 +214,15 @@ if __name__ == '__main__':
 
         model.train()
         optimizer.zero_grad()
-        out, extra_outputs = model(*inputs)
+        out, extra_outputs = model(*inputs,is_squad=True)
         if mode == MODE_OBJ:
           widths, centers, scores, extra_targets = targets
         else:
           starts, ends, extra_targets = targets
 
-        q_type_gt, c_in_a_gt, q_in_a_gt, ans_len_gt, delta_rouge = extra_targets
-        q_type_pred, c_in_a_pred, q_in_a_pred, ans_len_logits = extra_outputs
+        q_type_gt, c_in_a_gt, q_in_a_gt, ans_len_gt, is_impossible_gt, delta_rouge = extra_targets
+        q_type_pred, c_in_a_pred, q_in_a_pred, ans_len_logits, impossible_logits = extra_outputs
+
         if isinstance(criterion_main, ObjDetectionLoss):
           loss_main = criterion_main(out, widths, centers, scores)
         elif isinstance(criterion_main, RougeLoss) and delta_rouge is not None:
@@ -244,8 +236,9 @@ if __name__ == '__main__':
         loss_c_in_a = criterion_extra(c_in_a_pred, c_in_a_gt)
         loss_q_in_a = criterion_extra(q_in_a_pred, q_in_a_gt)
         loss_ans_len = F.nll_loss(F.log_softmax(ans_len_logits, dim=-1), ans_len_gt)
+        loss_impossible = F.nll_loss(F.log_softmax(impossible_logits, dim=-1), is_impossible_gt)
 
-        train_loss = loss_main + 0.2 * (loss_qtype + loss_c_in_a + loss_q_in_a + loss_ans_len)
+        train_loss = loss_main + 0.2 * (loss_c_in_a + loss_q_in_a + loss_ans_len + loss_impossible)
         train_loss.backward()
 
         torch.nn.utils.clip_grad_norm_(param_to_update, 5)
@@ -290,6 +283,7 @@ if __name__ == '__main__':
           val_step = 0
           val_sample_num = 0
           val_ans_len_hit = 0
+          val_impossible_hit=0
           val_start_hit = 0
           val_end_hit = 0
           rl = RougeL()
@@ -308,12 +302,15 @@ if __name__ == '__main__':
                 inputs, targets = transform.prepare_inputs(val_batch, mode != MODE_PTR)
                 starts, ends, extra_targets = targets
 
-              _, _, _, ans_len_gt, delta_rouge = extra_targets
+              _, _, _, ans_len_gt, is_impossible_gt, delta_rouge = extra_targets
 
-              out, ans_len_logits = model(*inputs)
+              out, ans_len_logits,impossible_logits = model(*inputs,is_squad=True)
+
               ans_len_prob = F.softmax(ans_len_logits, dim=-1)
+              impossible_prob = F.softmax(impossible_logits, dim=-1)
 
               ans_len_hit = (torch.max(ans_len_prob, -1)[1] == ans_len_gt).sum().item()
+              impossible_hit = (torch.max(impossible_prob, -1)[1] == is_impossible_gt).sum().item()
 
               if isinstance(criterion_main, PointerLoss):
                 val_loss = criterion_main(*out, starts, ends)
@@ -341,7 +338,7 @@ if __name__ == '__main__':
               ends = ends.detach().cpu()
 
               if show_plt and val_step % 1000 == 0:
-                out= out.detach().cpu()
+                out = out.detach().cpu()
                 for o, sample in zip(out, val_batch['raw']):
                   dim = o.size(0)
                   rouge_matrix = np.zeros([dim, dim])
@@ -373,7 +370,7 @@ if __name__ == '__main__':
                     if c < 0.8:
                       break
 
-                    pred_ans = postprocess.gen_ans(p1, p2, sample, key='ori_title_tokens', post_process=False)
+                    pred_ans = postprocess.gen_ans(p1, p2, sample,  post_process=False)
                     pred_anss.append((pred_ans, p1))
 
                   pred_anss = [t for t, _ in sorted(pred_anss, key=lambda d: d[1])]
@@ -394,11 +391,12 @@ if __name__ == '__main__':
               elif mode == MODE_PTR:
                 for pos1, pos2, sample in zip(batch_pos1, batch_pos2, val_batch['raw']):
                   gt_ans = sample['answer']
-                  pred_ans = postprocess.gen_ans(pos1, pos2, sample, key='ori_title_tokens', post_process=False)
+                  pred_ans = postprocess.gen_ans(pos1, pos2, sample,  post_process=False)
                   rl.add_inst(pred_ans, gt_ans)
 
               val_loss_total += val_loss.item()
               val_ans_len_hit += ans_len_hit
+              val_impossible_hit +=impossible_hit
               val_start_hit += 0
               val_end_hit += 0
               val_sample_num += ans_len_logits.size(0)
@@ -410,11 +408,14 @@ if __name__ == '__main__':
                 'Acc: Start {:.4f}\t'
                 'End {:.4f}\t'
                 'AnsLen {:.4f}\t'
+                'Impossible {:.4f}\t'
                 .format(e, step, len(train_loader),
                         val_loss_total / val_step,
                         val_start_hit / val_sample_num,
                         val_end_hit / val_sample_num,
-                        val_ans_len_hit / val_sample_num))
+                        val_ans_len_hit / val_sample_num,
+                        val_impossible_hit/val_sample_num
+                        ))
 
           print('RougeL: {: .4f}'.format(rouge_score))
           if len(nltk_bleu_scores) > 0:

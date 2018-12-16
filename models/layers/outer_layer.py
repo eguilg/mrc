@@ -20,7 +20,7 @@ class OuterNet(nn.Module):
 
 		self.unet = unet(feature_scale=8, in_channels=1, n_classes=1)
 
-	def forward(self, x, y, x_mask, y_mask):
+	def forward(self, c, q, x_mask, y_mask):
 
 		# gamma = self.w_q(y)  # b, J, x_size
 		# yy_mask = y_mask.unsqueeze(2).expand(-1, -1, self.hidden_size)
@@ -29,8 +29,8 @@ class OuterNet(nn.Module):
 
 		# q = torch.bmm(y.transpose(1, 2), gamma)  # b, y_size, hidden
 		# q = F.softmax(q, 1)  # b, y_size, hidden
-		s = self.dropout(self.w_s(x))  # b, T, hidden
-		e = self.dropout(self.w_e(x))  # b, T, hidden
+		s = self.dropout(self.w_s(c))  # b, T, hidden
+		e = self.dropout(self.w_e(c))  # b, T, hidden
 
 		outer = torch.bmm(s, e.transpose(1, 2))  # b, T, T
 		outer = outer.unsqueeze(1)
@@ -39,7 +39,7 @@ class OuterNet(nn.Module):
 
 		outer = outer.squeeze(1)
 		# print(outer.size())
-		x_len = x.size(1)
+		x_len = c.size(1)
 		xx_mask = x_mask.unsqueeze(2).expand(-1, -1, x_len)
 		outer.masked_fill_(xx_mask, -float('inf'))
 		outer.masked_fill_(xx_mask.transpose(1, 2), -float('inf'))

@@ -87,7 +87,7 @@ def process_file(data_path, output_path, data_type):
               token_start, token_end = answer_span[0] + len(title_tokens), answer_span[-1] + len(title_tokens)
               answer_tokens = context_tokens[token_start:token_end + 1]
               item = {
-                'is_impossible': is_impossible,
+                'is_impossible': int(is_impossible),
                 'article_tokens': context_tokens,
                 'question_tokens': ques_tokens,
                 'answer': answer_text,

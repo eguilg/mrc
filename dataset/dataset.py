@@ -99,21 +99,10 @@ class MaiWindowsDataset(Dataset):
     return self.__get_single_item__(indices)
 
   def __get_single_item__(self, index):
-    # if index in self.transformed_data:
-    #   key_data = self.transformed_data[index]
-    #   return key_data
-    # else:
-    #   key_data = self.transform(self.data_source[index],method='jieba')
-    #   self.transformed_data[index] = key_data
-    #
-    #   return key_data
-
     try:
       key_data = self.transform(self.data_source[index], method='jieba')
     except:
-      print(index)
       key_data = self.transform(self.data_source[0], method='jieba')
-    # self.transformed_data[index] = key_data
 
     return key_data
 
@@ -132,6 +121,50 @@ class TitleSummDataset(Dataset):
         lines = lines[:max_size]
       for line in lines:
         data_source.append(json.loads(line))
+
+    self.data_source = data_source
+    self.transformed_data = {}
+    self.transform = transform
+
+  def __getitem__(self, indices):
+    if isinstance(indices, (tuple, list)):
+      return [self.__get_single_item__(index) for index in indices]
+    return self.__get_single_item__(indices)
+
+  def __get_single_item__(self, index):
+    if index in self.transformed_data:
+      key_data = self.transformed_data[index]
+      return key_data
+    else:
+      key_data = self.transform(self.data_source[index], method='jieba')
+      self.transformed_data[index] = key_data
+
+      return key_data
+
+  def __len__(self):
+    return len(self.data_source)
+
+
+class SquadDataset(Dataset):
+  def __init__(self, data_path, transform, use_rouge, max_size=None, c_max_len=384, q_max_len=64):
+    self.use_rouge = use_rouge
+
+    data_source = []
+    with open(data_path, encoding='utf-8') as f:
+      lines = f.readlines()
+      if max_size is not None and max_size > 0:
+        lines = lines[:max_size]
+      for line in lines:
+        t = json.loads(line)
+        if t['is_impossible']:
+          continue
+        if t['answer_token_end'] >= c_max_len - 1:
+          continue
+        t['article_tokens'] = t['article_tokens'][:c_max_len]
+        t['question_tokens'] = t['question_tokens'][:q_max_len]
+        if len(t['article_tokens']) <= 0:
+          print()
+        data_source.append(t)
 
     self.data_source = data_source
     self.transformed_data = {}
