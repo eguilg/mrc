@@ -63,10 +63,10 @@ cur_cfg = bidaf3
 
 SEED = 502
 EPOCH = 150
-BATCH_SIZE = 64
+BATCH_SIZE = 128
 
 show_plt = False
-on_windows = True
+on_windows = False
 
 from config.config import MODE_OBJ, MODE_MRT, MODE_PTR
 
@@ -143,6 +143,7 @@ if __name__ == '__main__':
   )
 
   model_params = cur_cfg.model_params
+  model_params['c_max_len'] = 64
 
   model = RCModel(model_params, embed_lists, mode=mode, emb_trainable=True)
   model = model.cuda()
@@ -199,7 +200,7 @@ if __name__ == '__main__':
   if on_windows:
     val_every = [1, 70, 50, 35]
   else:
-    val_every = [2000, 700, 500, 350]
+    val_every = [1000, 700, 500, 350]
   drop_lr_frq = 1
   # val_every_min = 350
   # val_every = 1000
@@ -229,6 +230,7 @@ if __name__ == '__main__':
         model.train()
         optimizer.zero_grad()
         out, extra_outputs = model(*inputs)
+
         if mode == MODE_OBJ:
           widths, centers, scores, extra_targets = targets
         else:
@@ -379,6 +381,8 @@ if __name__ == '__main__':
 
                   c_in_a_pred_ans = ''
                   for idx, ccc in enumerate(cina):
+                    if idx >= len(sample['ori_title_tokens']):
+                      continue
                     if ccc > 0:
                       c_in_a_pred_ans += sample['ori_title_tokens'][idx]
                   pred_anss = []
@@ -394,8 +398,12 @@ if __name__ == '__main__':
                   rl.add_inst(pred_ans, gt_ans)
                   rl_cina.add_inst(c_in_a_pred_ans, gt_ans)
 
-                  rouge_score = ms_rouge_eval.get_scores(hyps=[' '.join(list(pred_ans))], refs=[' '.join(list(gt_ans))])
-                  ms_rouge_scores.append(rouge_score[0])
+                  try:
+                    rouge_score = ms_rouge_eval.get_scores(hyps=[' '.join(list(pred_ans))],
+                                                           refs=[' '.join(list(gt_ans))])
+                    ms_rouge_scores.append(rouge_score[0])
+                  except:
+                    pass
                   bleu1_score = sentence_bleu(references=[list(gt_ans)], hypothesis=list(pred_ans),
                                               weights=(1, 0, 0, 0))
                   bleu2_score = sentence_bleu(references=[list(gt_ans)], hypothesis=list(pred_ans),

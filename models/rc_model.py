@@ -10,7 +10,7 @@ from config.config import MODE_OBJ, MODE_MRT, MODE_PTR
 
 
 class RCModel(nn.Module):
-  def __init__(self, param_dict, embed_lists, normalize=True, mode=MODE_PTR, emb_trainable=False,is_squad=False):
+  def __init__(self, param_dict, embed_lists, normalize=True, mode=MODE_PTR, emb_trainable=False, is_squad=False):
     super(RCModel, self).__init__()
     # Store config
     self.param_dict = param_dict
@@ -20,9 +20,10 @@ class RCModel(nn.Module):
     self.dropout = param_dict['dropout']
     self.backbone_kwarg = param_dict['backbone_kwarg']
     self.ptr_kwarg = param_dict['ptr_kwarg']
+    self.c_max_len = param_dict['c_max_len']
     self.mode = mode
 
-    self.is_squad=is_squad
+    self.is_squad = is_squad
 
     try:
       self.backbone_type = BACKBONE_TYPES[param_dict['backbone_type']]
@@ -61,6 +62,7 @@ class RCModel(nn.Module):
         hidden_size=self.hidden_size,
         dropout_rate=self.dropout,
         normalize=normalize,
+        c_max_len=self.c_max_len
         # **self.ptr_kwarg
       )
     elif mode == MODE_OBJ:
@@ -165,10 +167,10 @@ class RCModel(nn.Module):
     else:
       if self.is_squad:
         impossible_logits = self.is_impossible_net(c[:, -1, :])
-        return out, ans_len_logits,impossible_logits
+        return out, ans_len_logits, impossible_logits
       else:
         c_in_a = self.isin_net(c).squeeze(-1)
-        return out, ans_len_logits,c_in_a
+        return out, ans_len_logits, c_in_a
 
   @staticmethod
   def decode(score_s, score_e, top_n=1, max_len=None):

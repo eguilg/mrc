@@ -62,14 +62,14 @@ cur_cfg = bidaf3
 
 SEED = 502
 EPOCH = 150
-BATCH_SIZE = 35
+BATCH_SIZE = 21
 
 show_plt = False
 on_windows = True
 
 from config.config import MODE_OBJ, MODE_MRT, MODE_PTR
 
-mode = MODE_PTR
+mode = MODE_MRT
 ms_rouge_eval = Rouge()
 
 if __name__ == '__main__':
@@ -130,6 +130,7 @@ if __name__ == '__main__':
 
   model_params = cur_cfg.model_params
 
+  model_params['c_max_len']=384
   model = RCModel(model_params, embed_lists, mode=mode, emb_trainable=False, is_squad=True)
   model = model.cuda()
   if mode == MODE_MRT:
@@ -214,7 +215,7 @@ if __name__ == '__main__':
 
         model.train()
         optimizer.zero_grad()
-        out, extra_outputs = model(*inputs, is_squad=True)
+        out, extra_outputs = model(*inputs)
         if mode == MODE_OBJ:
           widths, centers, scores, extra_targets = targets
         else:
@@ -304,7 +305,7 @@ if __name__ == '__main__':
 
               _, _, _, ans_len_gt, is_impossible_gt, delta_rouge = extra_targets
 
-              out, ans_len_logits, impossible_logits = model(*inputs, is_squad=True)
+              out, ans_len_logits, impossible_logits = model(*inputs)
 
               ans_len_prob = F.softmax(ans_len_logits, dim=-1)
               impossible_prob = F.softmax(impossible_logits, dim=-1)
@@ -323,7 +324,7 @@ if __name__ == '__main__':
               elif isinstance(criterion_main, RougeLoss) and delta_rouge is not None:
                 val_loss = criterion_main(out, delta_rouge)
                 out_ = out.detach().cpu()
-                batch_pos1, batch_pos2, confidence = model.decode_outer(out_, top_n=5)
+                batch_pos1, batch_pos2, confidence = model.decode_outer(out_, top_n=1)
               elif isinstance(criterion_main, ObjDetectionLoss):
                 val_loss = criterion_main(out, widths, centers, scores)
                 out = out.detach().cpu()
@@ -362,31 +363,21 @@ if __name__ == '__main__':
 
               if mode == MODE_MRT:
                 for pos1, pos2, sample, conf in zip(batch_pos1, batch_pos2, val_batch['raw'], confidence):
-                  ori_title = ''.join(sample['ori_title_tokens'])
+                  ori_title = ''.join(sample['article_tokens'])
                   gt_ans = sample['answer']
-
-                  pred_anss = []
-                  for p1, p2, c in zip(pos1, pos2, conf):
-                    if c < 0.8:
-                      break
-
-                    pred_ans = postprocess.gen_ans(p1, p2, sample, post_process=False)
-                    pred_anss.append((pred_ans, p1))
-
-                  pred_anss = [t for t, _ in sorted(pred_anss, key=lambda d: d[1])]
-                  pred_ans = ''.join(pred_anss)
+                  pred_ans = postprocess.gen_ans(pos1, pos2, sample, post_process=False)
                   rl.add_inst(pred_ans, gt_ans)
 
-                  rouge_score = ms_rouge_eval.get_scores(hyps=[' '.join(list(pred_ans))], refs=[' '.join(list(gt_ans))])
-                  ms_rouge_scores.append(rouge_score[0])
-                  # TODO:
-                  bleu1_score = sentence_bleu(references=[list(gt_ans)], hypothesis=list(pred_ans),
-                                              weights=(1, 0, 0, 0))
-                  bleu2_score = sentence_bleu(references=[list(gt_ans)], hypothesis=list(pred_ans),
-                                              weights=(0.5, 0.5, 0.0, 0.0))
-                  bleu4_score = sentence_bleu(references=[list(gt_ans)], hypothesis=list(pred_ans),
-                                              weights=(0.25, 0.25, 0.25, 0.25))
-                  nltk_bleu_scores.append((bleu1_score, bleu2_score, bleu4_score))
+                  # rouge_score = ms_rouge_eval.get_scores(hyps=[' '.join(list(pred_ans))], refs=[' '.join(list(gt_ans))])
+                  # ms_rouge_scores.append(rouge_score[0])
+                  # # TODO:
+                  # bleu1_score = sentence_bleu(references=[list(gt_ans)], hypothesis=list(pred_ans),
+                  #                             weights=(1, 0, 0, 0))
+                  # bleu2_score = sentence_bleu(references=[list(gt_ans)], hypothesis=list(pred_ans),
+                  #                             weights=(0.5, 0.5, 0.0, 0.0))
+                  # bleu4_score = sentence_bleu(references=[list(gt_ans)], hypothesis=list(pred_ans),
+                  #                             weights=(0.25, 0.25, 0.25, 0.25))
+                  # nltk_bleu_scores.append((bleu1_score, bleu2_score, bleu4_score))
 
               elif mode == MODE_PTR:
                 for pos1, pos2, sample in zip(batch_pos1, batch_pos2, val_batch['raw']):
