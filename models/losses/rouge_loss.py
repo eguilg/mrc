@@ -107,6 +107,6 @@ class RougeLoss(nn.Module):
 
   def forward(self, out_matix, delta_rouge):
     # return self.kl_div(out_matix,delta_rouge)
-    return self.focal(out_matix,delta_rouge)
-    # return self.margin_ranking(out_matix, delta_rouge)
+    # return self.focal(out_matix,delta_rouge)
+    return self.margin_ranking(out_matix, delta_rouge)
     # return self.handcrafted_loss(out_matix, delta_rouge)

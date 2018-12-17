@@ -46,6 +46,7 @@ slqa_plus3 = config.slqa_plus_3()
 
 # cur_cfg = bidaf2
 cur_cfg = bidaf3
+# cur_cfg = slqa_plus3
 
 # cur_cfg = rnet2
 # cur_cfg = rnet3
@@ -59,14 +60,13 @@ cur_cfg = bidaf3
 
 # cur_cfg = slqa_plus1
 # cur_cfg = slqa_plus2
-# cur_cfg = slqa_plus3
 
 SEED = 502
 EPOCH = 150
 BATCH_SIZE = 128
 
-show_plt = True
-on_windows = True
+show_plt = False
+on_windows = False
 
 from config.config import MODE_OBJ, MODE_MRT, MODE_PTR
 

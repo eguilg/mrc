@@ -78,6 +78,8 @@ def append_extra_rouges(ori_title, short_title, starts, ends, rouge_scores, wind
       for j in range(max(start, end - window_size), min(len(ori_title), start + window_size)):
         if (i, j) in fixed_pos:
           continue
+        if (i, j) in extra_pos_dict:
+          continue
 
         cur_text = ori_title[i:j + 1]
         if len(cur_text) == 0:
@@ -87,13 +89,10 @@ def append_extra_rouges(ori_title, short_title, starts, ends, rouge_scores, wind
         if rouge == 1.0:
           continue
 
-        if (i, j) not in extra_pos_dict:
-          extra_pos_dict[(i, j)] = []
-        extra_pos_dict[(i, j)].append(rouge)
+        extra_pos_dict[(i, j)] = rouge
 
   for (i, j) in extra_pos_dict:
-    rouges = extra_pos_dict[(i, j)]
-    rouge = sum(rouges) / len(rouges)
+    rouge = extra_pos_dict[(i, j)]
 
     starts.append(i)
     ends.append(j)
