@@ -24,6 +24,7 @@ class RougeL(object):
     def _save_cache(self):
         print('Saving Rouge-L cache.')
         write_pkl(self.score_cache, self.cache_path)
+        # pass
 
     def _lcs(self, x, y):
         """
@@ -82,7 +83,7 @@ class RougeL(object):
 
         self.score_cache[(cand, ref)] = (score, rec, prec)
         self.times += 1
-        if self.times % 5000 == 0:
+        if self.times % 50000 == 0:
             self._save_cache()
         return (score, rec, prec)
 

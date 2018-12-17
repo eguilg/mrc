@@ -9,6 +9,9 @@ import random
 import json
 import numpy as np
 from tqdm import tqdm
+from metrics.rouge import RougeL
+
+rouge_eval = RougeL()
 
 
 def read_data(file_path):
@@ -66,13 +69,60 @@ def output_spans(ori_title, short_title):
   return spans, span_text
 
 
-def preproce(raw_path, save_path):
+def append_extra_rouges(ori_title, short_title, starts, ends, rouge_scores, window_size=3):
+  fixed_pos = set([(start, end) for start, end in zip(starts, ends)])
+  extra_pos_dict = {}
+  # extra_starts, extra_ends, extra_rouge_scores = [], [], []
+
+  for start, end, score in zip(starts, ends, rouge_scores):
+    for i in range(max(0, start - window_size), min(end, start + window_size)):
+      for j in range(max(start, end - window_size), min(len(ori_title), start + window_size)):
+        if (i, j) in fixed_pos:
+          continue
+
+        cur_text = ori_title[i:j + 1]
+        if len(cur_text) == 0:
+          continue
+        rouge, _, _ = rouge_eval.calc_score(cur_text, short_title)
+        rouge /= len(cur_text)
+        if rouge == 1.0:
+          continue
+
+        if (i, j) not in extra_pos_dict:
+          extra_pos_dict[(i, j)] = []
+        extra_pos_dict[(i, j)].append(rouge)
+
+        # extra_starts.append(i)
+        # extra_ends.append(j)
+        # extra_rouge_scores.append(rouge)
+  for (i, j) in extra_pos_dict:
+    rouges = extra_pos_dict[(i, j)]
+    rouge = sum(rouges) / len(rouges)
+
+    starts.append(i)
+    ends.append(j)
+    rouge_scores.append(rouge)
+  # starts += extra_starts
+  # ends += extra_ends
+  # rouge_scores += extra_rouge_scores
+
+  return starts, ends, rouge_scores
+
+
+def preproce(raw_path, save_path, extra_rouge):
   with open(save_path, 'w', encoding='utf-8') as wf:
     val_data = read_data(raw_path)
     for data in tqdm(val_data):
       ori_title = data[0]
       short_title = data[1]
       spans, span_text = output_spans(ori_title, short_title)
+
+      starts = [span[0] for span in spans]
+      ends = [span[1] for span in spans]
+      rouge_scores = [1.0 - random.random() / 10 for _ in range(len(spans))]
+
+      if extra_rouge:
+        starts, ends, rouge_scores = append_extra_rouges(ori_title, short_title, starts, ends, rouge_scores)
 
       item = {
         'ori_title_tokens': list(ori_title),
@@ -83,9 +133,9 @@ def preproce(raw_path, save_path):
         'answer_token_start': 1,
         'answer_token_end': 1,
 
-        'delta_token_starts': [span[0] for span in spans],
-        'delta_token_ends': [span[1] for span in spans],
-        'delta_rouges': [1.0-random.random()/10 for _ in range(len(spans))]
+        'delta_token_starts': starts,
+        'delta_token_ends': ends,
+        'delta_rouges': rouge_scores
 
       }
       wf.write('%s\n' % (json.dumps(item, ensure_ascii=False)))
@@ -94,6 +144,8 @@ def preproce(raw_path, save_path):
 if __name__ == '__main__':
   train_path = 'title_data/train.txt'
   val_path = 'title_data/val.txt'
-
-  preproce(val_path, 'title_data/preprocessed/val.preprocessed.json')
-  preproce(train_path, 'title_data/preprocessed/train.preprocessed.json')
+  extra_rouge = True
+  preproce(val_path, 'title_data/preprocessed/val.preprocessed.%sjson' % ('extra_rouge.' if extra_rouge else ''),
+           extra_rouge=extra_rouge)
+  preproce(train_path, 'title_data/preprocessed/train.preprocessed.%sjson' % ('extra_rouge.' if extra_rouge else ''),
+           extra_rouge=extra_rouge)

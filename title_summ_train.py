@@ -75,10 +75,13 @@ ms_rouge_eval = Rouge()
 
 if __name__ == '__main__':
   print(cur_cfg.model_params)
+  extra_rouge = True
   data_root_folder = './title_data'
   corpus_file = os.path.join(data_root_folder, 'corpus.txt')
-  train_file = os.path.join(data_root_folder, 'preprocessed', 'train.preprocessed.json')  # FIXME:
-  val_file = os.path.join(data_root_folder, 'preprocessed', 'val.preprocessed.json')
+  train_file = os.path.join(data_root_folder, 'preprocessed',
+                            'val.preprocessed.%sjson' % ('extra_rouge.' if extra_rouge else ''))
+  val_file = os.path.join(data_root_folder, 'preprocessed',
+                          'val.preprocessed.%sjson' % ('extra_rouge.' if extra_rouge else ''))
 
   model_dir = os.path.join(data_root_folder, 'models')
   mkdir_if_missing(model_dir)
