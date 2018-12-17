@@ -65,8 +65,8 @@ SEED = 502
 EPOCH = 150
 BATCH_SIZE = 128
 
-show_plt = False
-on_windows = False
+show_plt = True
+on_windows = True
 
 from config.config import MODE_OBJ, MODE_MRT, MODE_PTR
 
