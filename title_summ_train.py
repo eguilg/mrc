@@ -201,7 +201,7 @@ if __name__ == '__main__':
   print_every = 200
   last_val_step = global_step
   if on_windows:
-    val_every = [1, 70, 50, 35]
+    val_every = [50, 70, 50, 35]
   else:
     val_every = [1000, 700, 500, 350]
   drop_lr_frq = 1

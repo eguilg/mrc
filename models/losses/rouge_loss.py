@@ -31,6 +31,26 @@ class RougeLoss(nn.Module):
     loss = loss_p + loss_n
     return loss
 
+  def mse_loss(self, out_matrix, delta_rouge):
+    out_matrix = out_matrix.view(out_matrix.size(0), -1)
+    delta_rouge = delta_rouge.view(delta_rouge.size(0), -1)
+
+    mse_diff = torch.abs(out_matrix - delta_rouge)
+    mse_diff = torch.pow(mse_diff, 2)
+
+    delta_p_mask = delta_rouge.gt(0).float()
+    sum_p = (mse_diff * delta_p_mask).sum(-1)  # batch
+    num_p = delta_p_mask.sum(-1)  # batch
+    loss_p = (sum_p / num_p).mean()
+
+    delta_n_mask = delta_rouge.eq(0).float()
+    sum_n = (mse_diff * delta_n_mask).sum(-1)
+    num_n = delta_n_mask.sum(-1)
+    loss_n = (sum_n / num_n).mean()
+
+    loss = loss_p + loss_n
+    return loss
+
   def focal(self, out_matix, delta_rouge):
     out_matix = out_matix.view(out_matix.size(0), -1)
     delta_rouge = delta_rouge.view(delta_rouge.size(0), -1)
@@ -108,5 +128,7 @@ class RougeLoss(nn.Module):
   def forward(self, out_matix, delta_rouge):
     # return self.kl_div(out_matix,delta_rouge)
     # return self.focal(out_matix,delta_rouge)
-    return self.margin_ranking(out_matix, delta_rouge)
+    # return self.margin_ranking(out_matix, delta_rouge)
     # return self.handcrafted_loss(out_matix, delta_rouge)
+    # return self.mse_loss(out_matix, delta_rouge) * 2 + self.margin_ranking(out_matix, delta_rouge)
+    return self.mse_loss(out_matix, delta_rouge)
