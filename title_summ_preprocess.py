@@ -72,7 +72,6 @@ def output_spans(ori_title, short_title):
 def append_extra_rouges(ori_title, short_title, starts, ends, rouge_scores, window_size=3):
   fixed_pos = set([(start, end) for start, end in zip(starts, ends)])
   extra_pos_dict = {}
-  # extra_starts, extra_ends, extra_rouge_scores = [], [], []
 
   for start, end, score in zip(starts, ends, rouge_scores):
     for i in range(max(0, start - window_size), min(end, start + window_size)):
@@ -92,9 +91,6 @@ def append_extra_rouges(ori_title, short_title, starts, ends, rouge_scores, wind
           extra_pos_dict[(i, j)] = []
         extra_pos_dict[(i, j)].append(rouge)
 
-        # extra_starts.append(i)
-        # extra_ends.append(j)
-        # extra_rouge_scores.append(rouge)
   for (i, j) in extra_pos_dict:
     rouges = extra_pos_dict[(i, j)]
     rouge = sum(rouges) / len(rouges)
@@ -102,9 +98,6 @@ def append_extra_rouges(ori_title, short_title, starts, ends, rouge_scores, wind
     starts.append(i)
     ends.append(j)
     rouge_scores.append(rouge)
-  # starts += extra_starts
-  # ends += extra_ends
-  # rouge_scores += extra_rouge_scores
 
   return starts, ends, rouge_scores
 

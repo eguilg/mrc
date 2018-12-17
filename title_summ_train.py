@@ -79,7 +79,7 @@ if __name__ == '__main__':
   data_root_folder = './title_data'
   corpus_file = os.path.join(data_root_folder, 'corpus.txt')
   train_file = os.path.join(data_root_folder, 'preprocessed',
-                            'val.preprocessed.%sjson' % ('extra_rouge.' if extra_rouge else ''))
+                            'train.preprocessed.%sjson' % ('extra_rouge.' if extra_rouge else ''))
   val_file = os.path.join(data_root_folder, 'preprocessed',
                           'val.preprocessed.%sjson' % ('extra_rouge.' if extra_rouge else ''))
 
