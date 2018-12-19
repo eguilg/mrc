@@ -63,10 +63,10 @@ cur_cfg = bidaf3
 
 SEED = 502
 EPOCH = 150
-BATCH_SIZE = 16
+BATCH_SIZE = 127
 
-show_plt = True
-on_windows = True
+show_plt = False
+on_windows = False
 
 from config.config import MODE_OBJ, MODE_MRT, MODE_PTR
 
@@ -119,7 +119,7 @@ if __name__ == '__main__':
   }
 
   transform = TitleSummTransform(jieba_base_v, jieba_sgns_v, jieba_flag_v)
-  train_dataset = TitleSummDataset(train_file, transform, use_rouge=True, max_size=None)  # FIXME:
+  train_dataset = TitleSummDataset(train_file, transform, use_rouge=True, max_size=None)
   dev_dataset = TitleSummDataset(val_file, transform, use_rouge=True, max_size=None)
 
   num_workers = 0
@@ -355,7 +355,7 @@ if __name__ == '__main__':
 
               if show_plt and val_step % 1000 == 0:
                 out = out.detach().cpu()
-                for o, sample in zip(out, val_batch['raw']):
+                for o, sample in zip(out[:10], val_batch['raw'][:10]):
                   dim = o.size(0)
                   rouge_matrix = np.zeros([dim, dim])
                   starts = sample['delta_token_starts']

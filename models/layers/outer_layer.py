@@ -16,28 +16,36 @@ class OuterNet(nn.Module):
     self.dropout_rate = dropout_rate
     self.c_max_len = c_max_len
 
-    # self.w_q = nn.Linear(y_size, x_size, False)
-    self.w_s = nn.Linear(x_size, hidden_size, False)
-    self.w_e = nn.Linear(x_size, hidden_size, False)
-
+    # self.w_s = nn.Linear(x_size, hidden_size, False)
+    # self.w_e = nn.Linear(x_size, hidden_size, False)
+    #
     self.dropout = nn.Dropout(p=self.dropout_rate)
-
+    #
     self.unet = unet(feature_scale=8, in_channels=1, n_classes=1)
     # self.unet = PSP(1, backbone='resnet50', aux=False, root='~/.gluoncvth/models')
+
+    self.w1 = nn.Linear(x_size, hidden_size, False)
+    self.w2 = nn.Linear(hidden_size, c_max_len, False)
 
   def forward(self, c, q, x_mask, y_mask):
     batch_size = c.size(0)
     x_len = c.size(1)
 
-    s = F.tanh(self.w_s(c))  # b, T, hidden
-    e = F.tanh(self.w_e(c))  # b, T, hidden
-    outer_ = torch.bmm(s, e.transpose(1, 2))  # b, T, T
+    # s = F.tanh(self.w_s(c))  # b, T, hidden
+    # e = F.tanh(self.w_e(c))  # b, T, hidden
+    # outer_ = torch.bmm(s, e.transpose(1, 2))  # b, T, T
+    outer = self.dropout(F.tanh(self.w1(c)))
+    outer = self.dropout(self.w2(outer))
+    outer = outer[:, :, :x_len]
 
-    outer = outer_.unsqueeze(1)
+    # outer_ = outer.unsqueeze(1)
+    # outer_ = self.unet(outer_)
+    # outer_ = outer_.squeeze(1)
+    # outer += outer_
+
+    outer = outer.unsqueeze(1)
     outer = self.unet(outer)
     outer = outer.squeeze(1)
-    outer += outer_
-    # outer=outer_
 
     xx_mask = x_mask.unsqueeze(2).expand(-1, -1, x_len)
     outer.masked_fill_(xx_mask, -float('inf'))

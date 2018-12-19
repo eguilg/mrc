@@ -36,12 +36,12 @@ def gen_sparse_indices(batch):
   return idx, val
 
 
-def title_summ_gen_sparse_indices(batch):
+def title_summ_gen_sparse_indices(batch, max_len):
   idx = [[], [], []]
   val = []
   for i, sample in enumerate(batch):
     sample = sample['raw']
-    select_index = list(range(len(sample['delta_token_starts'])))
+    select_index = [m for m, end in enumerate(sample['delta_token_ends']) if end < max_len]
 
     idx[0].extend([i for m in range(len(select_index))])
     idx[1].extend([sample['delta_token_starts'][idx] for idx in select_index])
@@ -437,7 +437,7 @@ class TitleSummTransform(object):
     c_lens = [sample['c_len'] for sample in res_batch]
     q_lens = [sample['q_len'] for sample in res_batch]
 
-    c_max_len = 32 * (max(c_lens) // 32) + 32
+    c_max_len = self.max_len
     q_max_len = max(q_lens)
     m = res_batch[0]['method']
     batch = {
@@ -475,7 +475,7 @@ class TitleSummTransform(object):
         'q_in_a': torch.FloatTensor(pad([sample['q_in_a'] for sample in res_batch], q_max_len, 0.0)),
         'ans_len': torch.LongTensor([sample['ans_len'] for sample in res_batch]),
 
-        'delta_rouge': torch.sparse_coo_tensor(*title_summ_gen_sparse_indices(res_batch),
+        'delta_rouge': torch.sparse_coo_tensor(*title_summ_gen_sparse_indices(res_batch, self.max_len),
                                                size=[len(res_batch), c_max_len, c_max_len]).to_dense(),
 
       })
