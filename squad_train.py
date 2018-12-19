@@ -60,25 +60,30 @@ cur_cfg = bidaf3
 # cur_cfg = slqa_plus2
 # cur_cfg = slqa_plus3
 
+show_plt = False
+on_windows = False
+
 SEED = 502
 EPOCH = 150
-BATCH_SIZE = 21
+BATCH_SIZE = 63
+if on_windows:
+  BATCH_SIZE=31
 
-show_plt = False
-on_windows = True
+
 
 from config.config import MODE_OBJ, MODE_MRT, MODE_PTR
 
-mode = MODE_MRT
+mode = MODE_PTR
 ms_rouge_eval = Rouge()
 
 if __name__ == '__main__':
   print(cur_cfg.model_params)
   data_root_folder = './squad_data'
-  train_file = os.path.join(data_root_folder, 'preprocessed', 'train-v2.0.preprocessed.json')
-  val_file = os.path.join(data_root_folder, 'preprocessed', 'dev-v2.0.preprocessed.json')
+  version = 'v1.1'
+  train_file = os.path.join(data_root_folder, 'preprocessed', 'train-%s.preprocessed.json' % version)
+  val_file = os.path.join(data_root_folder, 'preprocessed', 'dev-%s.preprocessed.json' % version)
 
-  model_dir = os.path.join(data_root_folder, 'models')
+  model_dir = os.path.join(data_root_folder, 'models', version)
   mkdir_if_missing(model_dir)
 
   if mode == MODE_MRT:
@@ -91,8 +96,8 @@ if __name__ == '__main__':
   model_path = os.path.join(model_dir, model_name + '.state')
   print('Model path:', model_path)
 
-  jieba_base_v = Vocab(os.path.join(data_root_folder, 'vocab', 'squad.vocab.pkl'),
-                       os.path.join(data_root_folder, 'vocab', 'squad.emb.pkl'))
+  jieba_base_v = Vocab(os.path.join(data_root_folder, 'vocab', 'squad-%s.vocab.pkl' % version),
+                       os.path.join(data_root_folder, 'vocab', 'squad-%s.emb.pkl' % version))
 
   jieba_sgns_v = Vocab(os.path.join(data_root_folder, 'vocab', 'useless.vocab.pkl'),
                        os.path.join(data_root_folder, 'vocab', 'useless.emb.pkl'))
@@ -130,7 +135,7 @@ if __name__ == '__main__':
 
   model_params = cur_cfg.model_params
 
-  model_params['c_max_len']=384
+  model_params['c_max_len'] = 384
   model = RCModel(model_params, embed_lists, mode=mode, emb_trainable=False, is_squad=True)
   model = model.cuda()
   if mode == MODE_MRT:
@@ -186,7 +191,7 @@ if __name__ == '__main__':
   if on_windows:
     val_every = [200, 70, 50, 35]
   else:
-    val_every = [2000, 700, 500, 350]
+    val_every = [500, 700, 500, 350]
   drop_lr_frq = 1
   # val_every_min = 350
   # val_every = 1000

@@ -10,7 +10,7 @@ def pickle_dump(data, file_path):
 
 word_freq_dict = {}
 
-with open('squad_data/preprocessed/train-v2.0.preprocessed.json', encoding='utf-8') as f:
+with open('squad_data/preprocessed/train-v1.1.preprocessed.json', encoding='utf-8') as f:
   lines = f.readlines()
   for line in lines:
     sample = json.loads(line)
@@ -47,5 +47,5 @@ for word, freq in sorted(word_freq_dict.items(), key=lambda d: d[1], reverse=Tru
 print(len(tokens))
 
 embeddings = np.array(embeddings)
-pickle_dump(tokens, 'squad_data/vocab/squad.vocab.pkl')
-pickle_dump(embeddings, 'squad_data/vocab/squad.emb.pkl')
+pickle_dump(tokens, 'squad_data/vocab/squad-v1.1.vocab.pkl')
+pickle_dump(embeddings, 'squad_data/vocab/squad-v1.1.emb.pkl')

@@ -49,7 +49,10 @@ def process_file(data_path, output_path, data_type):
           context_tokens = title_tokens + context_tokens
 
           for qa in para["qas"]:
-            is_impossible = qa['is_impossible']
+            if 'is_impossible' not in qa:
+              is_impossible = False
+            else:
+              is_impossible = qa['is_impossible']
             ques = qa["question"].replace("''", '" ').replace("``", '" ')
             ques_tokens = word_tokenize(ques)
 
@@ -111,11 +114,17 @@ if __name__ == '__main__':
   if not os.path.exists(preprocessed_folder):
     os.makedirs(preprocessed_folder)
 
-  train_path = os.path.join(data_folder, 'train-v2.0.json')
-  train_output_path = os.path.join(preprocessed_folder, 'train-v2.0.preprocessed.json')
+  # train_path = os.path.join(data_folder, 'train-v2.0.json')
+  # train_output_path = os.path.join(preprocessed_folder, 'train-v2.0.preprocessed.json')
+  #
+  # val_path = os.path.join(data_folder, 'dev-v2.0.json')
+  # val_output_path = os.path.join(preprocessed_folder, 'dev-v2.0.preprocessed.json')
 
-  val_path = os.path.join(data_folder, 'dev-v2.0.json')
-  val_output_path = os.path.join(preprocessed_folder, 'dev-v2.0.preprocessed.json')
+  train_path = os.path.join(data_folder, 'train-v1.1.json')
+  train_output_path = os.path.join(preprocessed_folder, 'train-v1.1.preprocessed.json')
+
+  val_path = os.path.join(data_folder, 'dev-v1.1.json')
+  val_output_path = os.path.join(preprocessed_folder, 'dev-v1.1.preprocessed.json')
 
   process_file(train_path, train_output_path, data_type='train')
   process_file(val_path, val_output_path, data_type='val')
