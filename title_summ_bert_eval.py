@@ -133,13 +133,8 @@ if __name__ == '__main__':
   model_dir = os.path.join(data_root_folder, 'models')
   mkdir_if_missing(model_dir)
 
-  lr = 5e-3
   SEED = 502
-  EPOCH = 5
   BATCH_SIZE = 8
-
-  print_every = 2000
-  eval_every = 2000
 
   show_plt = True
   on_windows = True
@@ -149,8 +144,7 @@ if __name__ == '__main__':
   mode = MODE_MRT
   ms_rouge_eval = Rouge()
 
-  model_path = os.path.join(model_dir, mode + '.bert.state1')
-  model_path = 'title_data/models/MODE_MRT.bert.state1.tmp'
+  model_path = os.path.join(model_dir, mode + '.bert.state')
   print('Model path:', model_path)
 
   tokenizer = TitleSummBertTokenizer('title_data/vocab/bert-base-multilingual-cased.vocab')
@@ -164,10 +158,30 @@ if __name__ == '__main__':
   model = model.cuda()
   state = torch.load(model_path)
   model.load_state_dict(state['best_model_state'])
+
+  state = {}
+
   # model = torch.load(model_path)
 
   device = torch.device("cuda")
   global_step = 0
 
+  from title_summ_bert_train import evaluate
 
+  device = torch.device("cuda")
 
+  val_loss, val_scores = evaluate(model, val_dataset, val_dataloader, show_plt, device)
+  rouge_score = val_scores['rouge_score']
+  nltk_bleu_scores = val_scores['nltk_bleus']
+  ms_rouges = val_scores['ms_rouges']
+
+  # print('Val Epoch: [{}][{}/{}]\t'
+  #       'Loss: Main {:.4f}\t'
+  #       .format(epoch, step, len(train_dataloader), val_loss))
+  print('Loss: Main {:.4f}\t'
+        .format(val_loss))
+  print('Rouge-L: {:.4f}'.format(rouge_score))
+  print('NLTK Bleu-1: {: .4f}, Bleu-2: {: .4f}, Bleu-4: {: .4f}'
+        .format(nltk_bleu_scores[0], nltk_bleu_scores[1], nltk_bleu_scores[2]))
+  print('MS Rouge-1: {: .4f}, Rouge-2: {: .4f}, Rouge-L: {: .4f}'
+        .format(ms_rouges[0], ms_rouges[1], ms_rouges[2]))

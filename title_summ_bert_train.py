@@ -26,7 +26,7 @@ import postprocess
 from title_summ_tokenizer import TitleSummBertTokenizer
 from torch.utils.data import Dataset
 import json
-from pytorch_pretrained_bert import BertModel
+from pytorch_pretrained_bert import BertModel, BertConfig, BertForQuestionAnswering
 from models.title_models import BertForTitleSumm
 from pytorch_pretrained_bert.optimization import BertAdam
 from torch.utils.data import DataLoader
@@ -112,7 +112,7 @@ class TitleSummBertDataset(Dataset):
       return key_data
 
 
-def evaluate(model, val_dataset, val_dataloader, show_plt):
+def evaluate(model, val_dataset, val_dataloader, show_plt, device):
   with torch.no_grad():
     model.eval()
     val_loss_sum = 0
@@ -171,6 +171,7 @@ def evaluate(model, val_dataset, val_dataloader, show_plt):
                                     weights=(0.25, 0.25, 0.25, 0.25))
         nltk_bleu_scores.append((bleu1_score, bleu2_score, bleu4_score))
 
+    print('Max confidence:', conf[0])
     val_loss = val_loss_sum / len(val_dataloader)
     bleu1_score, bleu2_score, bleu4_score = 0, 0, 0
     if len(nltk_bleu_scores) > 0:
@@ -195,7 +196,6 @@ def evaluate(model, val_dataset, val_dataloader, show_plt):
 
 if __name__ == '__main__':
   data_root_folder = './title_data'
-  corpus_file = os.path.join(data_root_folder, 'corpus.txt')
   train_file = os.path.join(data_root_folder, 'preprocessed',
                             'train.preprocessed.extra_rouge.bert-base-multilingual-cased.json')  # fixme
   val_file = os.path.join(data_root_folder, 'preprocessed',
@@ -204,13 +204,15 @@ if __name__ == '__main__':
   model_dir = os.path.join(data_root_folder, 'models')
   mkdir_if_missing(model_dir)
 
-  lr = 5e-3
+  lr = 1e-2
   SEED = 502
   EPOCH = 5
-  BATCH_SIZE = 2
+  BATCH_SIZE = 32
 
-  show_plt = False
+  show_plt = True
   on_windows = True
+  if on_windows:
+    BATCH_SIZE = 8
 
   from config.config import MODE_OBJ, MODE_MRT, MODE_PTR
 
@@ -222,11 +224,15 @@ if __name__ == '__main__':
 
   tokenizer = TitleSummBertTokenizer('title_data/vocab/bert-base-multilingual-cased.vocab')
   transform = TitleSummBertTransform(tokenizer=tokenizer, max_len=64)
-  train_dataset = TitleSummBertDataset(val_file, transform, max_size=100)
-  val_dataset = TitleSummBertDataset(val_file, transform, max_size=100)
+  train_dataset = TitleSummBertDataset(val_file, transform, max_size=400)  # FIXME: 临时在val上做过拟合测试
+  val_dataset = TitleSummBertDataset(val_file, transform, max_size=400)
   train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, collate_fn=transform.batchify, shuffle=True)
   val_dataloader = DataLoader(val_dataset, batch_size=BATCH_SIZE, collate_fn=transform.batchify, shuffle=False)
 
+  # if not os.path.isfile(model_path):
+  #   model = BertForTitleSumm.from_pretrained('bert-base-multilingual-cased', cache_dir='bert_ckpts')
+  # else:
+  #   model = BertForTitleSumm(BertConfig.from_json_file('bert_ckpts/bert_config.json'))
   model = BertForTitleSumm.from_pretrained('bert-base-multilingual-cased', cache_dir='bert_ckpts')
   model = model.cuda()
 
@@ -248,14 +254,15 @@ if __name__ == '__main__':
     optimizer.load_state_dict(state['best_opt_state'])
     epoch_list = range(state['best_epoch'] + 1, state['best_epoch'] + 1 + EPOCH)
     global_step = state['best_step']
+
+    state = {}  ## FIXME:  临时的解决方案
   else:
     state = None
     epoch_list = range(EPOCH)
     global_step = 0
 
-
   grade = 0
-  print_every = 50
+  print_every = 200
   if on_windows:
     val_every = [50, 70, 50, 35]
   else:
@@ -265,81 +272,84 @@ if __name__ == '__main__':
 
   val_no_improve = 0
   train_loss_sum = 0
+
   for epoch in range(1, EPOCH + 1):
-    for step, batch in enumerate(tqdm(train_dataloader), start=1):
-      optimizer.zero_grad()
-      batch = tuple(t.to(device) for t in batch)
-      uuid_batch, input_ids_batch, segment_ids_batch, input_masks_batch, rouge_matrix_batch = batch
+    with tqdm(total=len(train_dataloader)) as bar:
+      for step, batch in enumerate(train_dataloader, start=1):
+        model.train()
+        optimizer.zero_grad()
+        batch = tuple(t.to(device) for t in batch)
+        uuid_batch, input_ids_batch, segment_ids_batch, input_masks_batch, rouge_matrix_batch = batch
 
-      loss, _ = model(input_ids_batch, segment_ids_batch, input_masks_batch, rouge_matrix_batch)
-      loss.backward()
-      train_loss_sum += loss.item()
+        loss, _ = model(input_ids_batch, segment_ids_batch, input_masks_batch, rouge_matrix_batch)
+        loss.backward()
+        train_loss_sum += loss.item()
 
-      lr_this_step = lr
-      for param_group in optimizer.param_groups:
-        param_group['lr'] = lr_this_step
-      optimizer.step()
+        lr_this_step = lr
+        for param_group in optimizer.param_groups:
+          param_group['lr'] = lr_this_step
+        optimizer.step()
 
-      global_step += 1
-      if global_step % print_every == 0:
-        time.sleep(0.02)
-        print('Epoch: [{}][{}/{}]\t'
-              'Loss: Main {:.4f}\t'
-              .format(epoch, step, len(train_dataloader),
-                      train_loss_sum / print_every))
-        train_loss_sum = 0
+        global_step += 1
+        if global_step % print_every == 0:
+          bar.update(min(print_every, step))
+          time.sleep(0.02)
+          print('Epoch: [{}][{}/{}]\t'
+                'Loss: Main {:.4f}\t'
+                .format(epoch, step, len(train_dataloader),
+                        train_loss_sum / print_every))
+          train_loss_sum = 0
 
-      if global_step % val_every[grade] == 0:
-        print('-' * 80)
-        print('Evaluating...')
-        val_loss, val_scores = evaluate(model, val_dataset, val_dataloader, show_plt)
-        rouge_score = val_scores['rouge_score']
-        nltk_bleu_scores = val_scores['nltk_bleus']
-        ms_rouges = val_scores['ms_rouges']
+        if global_step % val_every[grade] == 0:
+          print('-' * 80)
+          print('Evaluating...')
+          val_loss, val_scores = evaluate(model, val_dataset, val_dataloader, show_plt, device)
+          rouge_score = val_scores['rouge_score']
+          nltk_bleu_scores = val_scores['nltk_bleus']
+          ms_rouges = val_scores['ms_rouges']
 
-        print('Val Epoch: [{}][{}/{}]\t'
-              'Loss: Main {:.4f}\t'
-              .format(epoch, step, len(train_dataloader), val_loss))
-        print('Rouge-L: {:.4f}'.format(rouge_score))
-        print('NLTK Bleu-1: {: .4f}, Bleu-2: {: .4f}, Bleu-4: {: .4f}'
-              .format(nltk_bleu_scores[0], nltk_bleu_scores[1], nltk_bleu_scores[2]))
-        print('MS Rouge-1: {: .4f}, Rouge-2: {: .4f}, Rouge-L: {: .4f}'
-              .format(ms_rouges[0], ms_rouges[1], ms_rouges[2]))
-        print('-' * 80)
+          print('Val Epoch: [{}][{}/{}]\t'
+                'Loss: Main {:.4f}\t'
+                .format(epoch, step, len(train_dataloader), val_loss))
+          print('Rouge-L: {:.4f}'.format(rouge_score))
+          print('NLTK Bleu-1: {: .4f}, Bleu-2: {: .4f}, Bleu-4: {: .4f}'
+                .format(nltk_bleu_scores[0], nltk_bleu_scores[1], nltk_bleu_scores[2]))
+          print('MS Rouge-1: {: .4f}, Rouge-2: {: .4f}, Rouge-L: {: .4f}'
+                .format(ms_rouges[0], ms_rouges[1], ms_rouges[2]))
 
-        if state is None:
-          state = {}
-        if state == {} or state['best_score'] < rouge_score:
-          state['best_model_state'] = model.state_dict()
-          state['best_opt_state'] = optimizer.state_dict()
-          state['best_loss'] = val_loss
-          state['best_score'] = rouge_score
-          state['best_epoch'] = epoch
-          state['best_step'] = global_step
+          if state is None:
+            state = {}
+          if state == {} or state['best_score'] < rouge_score:
+            state['best_model_state'] = model.state_dict()
+            state['best_opt_state'] = optimizer.state_dict()
+            state['best_loss'] = val_loss
+            state['best_score'] = rouge_score
+            state['best_epoch'] = epoch
+            state['best_step'] = global_step
 
-          val_no_improve = 0
-        else:
-          val_no_improve += 1
-
-          if val_no_improve >= int(drop_lr_frq):
-            print('dropping lr...')
             val_no_improve = 0
-            drop_lr_frq += 1.4
-            lr_total = 0
-            lr_num = 0
-            for param_group in optimizer.param_groups:
-              if param_group['lr'] > 2e-5:
-                param_group['lr'] *= 0.5
-              lr_total += param_group['lr']
-              lr_num += 1
-            print('curr avg lr is {}'.format(lr_total / lr_num))
+          else:
+            val_no_improve += 1
 
-        state['cur_model_state'] = model.state_dict()
-        state['cur_opt_state'] = optimizer.state_dict()
-        state['cur_epoch'] = epoch
-        state['val_loss'] = val_loss
-        state['val_score'] = rouge_score
-        state['cur_step'] = global_step
+            if val_no_improve >= int(drop_lr_frq):
+              print('dropping lr...')
+              val_no_improve = 0
+              drop_lr_frq += 1.4
+              lr_total = 0
+              lr_num = 0
+              for param_group in optimizer.param_groups:
+                if param_group['lr'] > 2e-5:
+                  param_group['lr'] *= 0.5
+                lr_total += param_group['lr']
+                lr_num += 1
+              print('curr avg lr is {}'.format(lr_total / lr_num))
 
-        torch.save(state, model_path)
-        print('Saved into', model_path)
+          state['cur_model_state'] = model.state_dict()
+          state['cur_opt_state'] = optimizer.state_dict()
+          state['cur_epoch'] = epoch
+          state['val_loss'] = val_loss
+          state['val_score'] = rouge_score
+          state['cur_step'] = global_step
+
+          torch.save(state, model_path)
+          print('Saved into', model_path)

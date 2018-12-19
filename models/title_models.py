@@ -27,6 +27,7 @@ class BertForTitleSumm(PreTrainedBertModel):
 
   def forward(self, input_ids, token_type_ids=None, attention_mask=None, rouge_matrix=None):
     sequence_output, _ = self.bert(input_ids, token_type_ids, attention_mask, output_all_encoded_layers=False)
+    attention_mask = 1 - attention_mask
     attention_mask = attention_mask.byte()
     out = self.out_layer(sequence_output, sequence_output, attention_mask, attention_mask)
 
