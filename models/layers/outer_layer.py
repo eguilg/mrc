@@ -22,7 +22,7 @@ class OuterNet(nn.Module):
 
     self.dropout = nn.Dropout(p=self.dropout_rate)
 
-    self.unet = unet(feature_scale=8, in_channels=1, n_classes=1)
+    # self.unet = unet(feature_scale=8, in_channels=1, n_classes=1)
     # self.unet = PSP(1, backbone='resnet50', aux=False, root='~/.gluoncvth/models')
 
   def forward(self, c, q, x_mask, y_mask):
@@ -33,11 +33,11 @@ class OuterNet(nn.Module):
     e = F.tanh(self.w_e(c))  # b, T, hidden
     outer_ = torch.bmm(s, e.transpose(1, 2))  # b, T, T
 
-    outer = outer_.unsqueeze(1)
-    outer = self.unet(outer)
-    outer = outer.squeeze(1)
-    outer += outer_
-    # outer=outer_
+    # outer = outer_.unsqueeze(1)
+    # outer = self.unet(outer)
+    # outer = outer.squeeze(1)
+    # outer += outer_
+    outer=outer_
 
     xx_mask = x_mask.unsqueeze(2).expand(-1, -1, x_len)
     outer.masked_fill_(xx_mask, -float('inf'))

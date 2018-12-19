@@ -135,6 +135,7 @@ if __name__ == '__main__':
     # batch_sampler=MethodBasedBatchSampler(data_for_train, batch_size=BATCH_SIZE, seed=SEED),
     num_workers=num_workers,
     collate_fn=transform.batchify,
+    shuffle=True
   )
 
   dev_loader = DataLoader(
@@ -457,10 +458,6 @@ if __name__ == '__main__':
           print('-' * 80)
           if state is None:
             state = {}
-          # if os.path.isfile(model_path):
-          #   state = torch.load(model_path)
-          # else:
-
           if state == {} or state['best_score'] < rouge_score:
             state['best_model_state'] = model.state_dict()
             state['best_opt_state'] = optimizer.state_dict()
