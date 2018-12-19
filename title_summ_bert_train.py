@@ -204,13 +204,13 @@ if __name__ == '__main__':
   model_dir = os.path.join(data_root_folder, 'models')
   mkdir_if_missing(model_dir)
 
-  lr = 1e-2
+  lr = 5e-3
   SEED = 502
-  EPOCH = 5
-  BATCH_SIZE = 32
+  EPOCH = 150
+  BATCH_SIZE = 64
 
-  show_plt = True
-  on_windows = True
+  show_plt = False
+  on_windows = False
   if on_windows:
     BATCH_SIZE = 8
 
@@ -224,8 +224,8 @@ if __name__ == '__main__':
 
   tokenizer = TitleSummBertTokenizer('title_data/vocab/bert-base-multilingual-cased.vocab')
   transform = TitleSummBertTransform(tokenizer=tokenizer, max_len=64)
-  train_dataset = TitleSummBertDataset(val_file, transform, max_size=400)  # FIXME: 临时在val上做过拟合测试
-  val_dataset = TitleSummBertDataset(val_file, transform, max_size=400)
+  train_dataset = TitleSummBertDataset(val_file, transform, max_size=None)  # FIXME: 临时在val上做过拟合测试
+  val_dataset = TitleSummBertDataset(val_file, transform, max_size=None)
   train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, collate_fn=transform.batchify, shuffle=True)
   val_dataloader = DataLoader(val_dataset, batch_size=BATCH_SIZE, collate_fn=transform.batchify, shuffle=False)
 
@@ -262,11 +262,13 @@ if __name__ == '__main__':
     global_step = 0
 
   grade = 0
-  print_every = 200
+
   if on_windows:
+    print_every = 50
     val_every = [50, 70, 50, 35]
   else:
-    val_every = [1000, 700, 500, 350]
+    print_every = 2000
+    val_every = [10000, 700, 500, 350]
   drop_lr_frq = 2
   device = torch.device("cuda")
 

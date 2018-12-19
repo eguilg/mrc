@@ -48,7 +48,7 @@ class RougeLoss(nn.Module):
     num_n = delta_n_mask.sum(-1)
     loss_n = (sum_n / num_n).mean()
 
-    loss = 10 *loss_p + loss_n
+    loss = loss_p + loss_n
     return loss
 
   def focal(self, out_matix, delta_rouge):
