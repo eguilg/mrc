@@ -116,7 +116,7 @@ if __name__ == '__main__':
   data_root_folder = './title_data'
   corpus_file = os.path.join(data_root_folder, 'corpus.txt')
   train_file = os.path.join(data_root_folder, 'preprocessed',
-                            'val.preprocessed.extra_rouge.bert-base-multilingual-cased.json')  # fixme
+                            'train.preprocessed.extra_rouge.bert-base-multilingual-cased.json')  # fixme
   val_file = os.path.join(data_root_folder, 'preprocessed',
                           'val.preprocessed.extra_rouge.bert-base-multilingual-cased.json')
 
@@ -125,8 +125,11 @@ if __name__ == '__main__':
 
   lr = 5e-3
   SEED = 502
-  EPOCH = 150
-  BATCH_SIZE = 4
+  EPOCH = 5
+  BATCH_SIZE = 8
+
+  print_every = 2000
+  eval_every = 2000
 
   show_plt = True
   on_windows = True
@@ -136,20 +139,20 @@ if __name__ == '__main__':
   mode = MODE_MRT
   ms_rouge_eval = Rouge()
 
-  model_path = os.path.join(model_dir, mode + '.state')
+  model_path = os.path.join(model_dir, mode + '.bert.state')
   print('Model path:', model_path)
 
   tokenizer = TitleSummBertTokenizer('title_data/vocab/bert-base-multilingual-cased.vocab')
 
   transform = TitleSummBertTransform(tokenizer=tokenizer, max_len=64)
 
-  train_dataset = TitleSummBertDataset(train_file, transform, max_size=1000)
-  val_dataset = TitleSummBertDataset(val_file, transform, max_size=1000)
+  train_dataset = TitleSummBertDataset(train_file, transform, max_size=None)
+  val_dataset = TitleSummBertDataset(val_file, transform, max_size=None)
 
   train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, collate_fn=transform.batchify, shuffle=True)
   val_dataloader = DataLoader(val_dataset, batch_size=BATCH_SIZE, collate_fn=transform.batchify, shuffle=True)
 
-  model = BertForTitleSumm.from_pretrained('bert-base-multilingual-cased')
+  model = BertForTitleSumm.from_pretrained('bert-base-multilingual-cased', cache_dir='bert_ckpts')
   model = model.cuda()
   param_optimizer = list(model.named_parameters())
   param_optimizer = [n for n in param_optimizer if 'pooler' not in n[0]]
@@ -183,24 +186,28 @@ if __name__ == '__main__':
       optimizer.zero_grad()
       global_step += 1
 
-      if global_step % 50 == 0:
+      if global_step % print_every == 0:
         time.sleep(0.02)
         print('Epoch: [{}][{}/{}]\t'
               'Loss: Main {:.4f}\t'
               .format(epoch, step, len(train_dataloader),
-                      train_loss_sum / 50))
+                      train_loss_sum / print_every))
         train_loss_sum = 0
-      if global_step % 1000 == 0:
-        print('-' * 80)
-        print('Evaluating...')
-        with torch.no_grad():
-          model.eval()
-          val_loss_sum = 0
-          for val_batch in val_dataloader:
-            uuid_batch, input_ids_batch, segment_ids_batch, input_masks_batch, rouge_matrix_batch = batch
-            loss = model(input_ids_batch, segment_ids_batch, input_masks_batch, rouge_matrix_batch)
-            val_loss_sum += loss.item()
-          print('Val Epoch: [{}][{}/{}]\t'
-                'Loss: Main {:.4f}\t'
-                .format(epoch, step, len(train_dataloader),
-                        val_loss_sum / len(val_dataloader)))
+      #
+      # if global_step % eval_every == 0:
+      #   print('-' * 80)
+      #   print('Evaluating...')
+      #   with torch.no_grad():
+      #     model.eval()
+      #     val_loss_sum = 0
+      #     for val_batch in val_dataloader:
+      #       uuid_batch, input_ids_batch, segment_ids_batch, input_masks_batch, rouge_matrix_batch = batch
+      #       loss = model(input_ids_batch, segment_ids_batch, input_masks_batch, rouge_matrix_batch)
+      #       val_loss_sum += loss.item()
+      #     print('Val Epoch: [{}][{}/{}]\t'
+      #           'Loss: Main {:.4f}\t'
+      #           .format(epoch, step, len(train_dataloader),
+      #                   val_loss_sum / len(val_dataloader)))
+      #   torch.save(model, model_path)
+    torch.save(model, model_path)
+    torch.save(model, model_path + '%d' % epoch)
