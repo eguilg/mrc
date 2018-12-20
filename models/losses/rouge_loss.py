@@ -18,17 +18,17 @@ class RougeLoss(nn.Module):
     cross_entropy = -(
         delta_rouge * torch.log(out_matrix + 1e-30) + (1 - delta_rouge) * torch.log(1 - out_matrix + 1e-30))
 
-    delta_p_mask = delta_rouge.gt(0).float()
+    delta_p_mask = delta_rouge.gt(0.6).float()
     sum_p = (cross_entropy * delta_p_mask).sum(-1)  # batch
     num_p = delta_p_mask.sum(-1)  # batch
     loss_p = (sum_p / num_p).mean()
 
-    delta_n_mask = delta_rouge.eq(0).float()
+    delta_n_mask = 1 - delta_p_mask
     sum_n = (cross_entropy * delta_n_mask).sum(-1)
     num_n = delta_n_mask.sum(-1)
     loss_n = (sum_n / num_n).mean()
 
-    loss = 10 * loss_p + loss_n
+    loss = loss_p + loss_n
     return loss
 
   def mse_loss(self, out_matrix, delta_rouge):
@@ -38,12 +38,12 @@ class RougeLoss(nn.Module):
     mse_diff = torch.abs(out_matrix - delta_rouge)
     mse_diff = torch.pow(mse_diff, 2)
 
-    delta_p_mask = delta_rouge.gt(0).float()
+    delta_p_mask = delta_rouge.gt(0.6).float()
     sum_p = (mse_diff * delta_p_mask).sum(-1)  # batch
     num_p = delta_p_mask.sum(-1)  # batch
     loss_p = (sum_p / num_p).mean()
 
-    delta_n_mask = delta_rouge.eq(0).float()
+    delta_n_mask = 1 - delta_p_mask
     sum_n = (mse_diff * delta_n_mask).sum(-1)
     num_n = delta_n_mask.sum(-1)
     loss_n = (sum_n / num_n).mean()
@@ -71,8 +71,8 @@ class RougeLoss(nn.Module):
     fl = fl_w * (nll_p + nll_n)
 
     # balance pos and neg
-    delta_mask_p = delta_rouge.gt(0).float()
-    delta_mask_n = (1 - delta_rouge).gt(0).float()
+    delta_mask_p = delta_rouge.gt(0.6).float()
+    delta_mask_n = 1 - delta_mask_p
     fl_p = (delta_mask_p * fl).sum(-1) / delta_rouge.sum(-1)
     fl_n = (delta_mask_n * fl).sum(-1) / (1 - delta_rouge).sum(-1)
 
