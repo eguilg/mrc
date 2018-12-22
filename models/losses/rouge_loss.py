@@ -76,7 +76,7 @@ class RougeLoss(nn.Module):
     fl_p = (delta_mask_p * fl).sum(-1) / delta_rouge.sum(-1)
     fl_n = (delta_mask_n * fl).sum(-1) / (1 - delta_rouge).sum(-1)
 
-    fl = (5 * fl_p + fl_n).mean()
+    fl = (fl_p + fl_n).mean()
     return fl
 
   def kl_div(self, out_matix, delta_rouge):
@@ -86,8 +86,9 @@ class RougeLoss(nn.Module):
     out_matix = out_matix.view(out_matix.size(0), -1)
     delta_rouge = delta_rouge.view(delta_rouge.size(0), -1)
 
-    delta_mask_p = delta_rouge.gt(0)
-    delta_mask_n = delta_rouge.eq(0)
+    delta_mask_p = delta_rouge.gt(0.6)
+    delta_mask_n = 1 - delta_mask_p
+    # delta_mask_n = delta_rouge.eq(0)
     total_loss = None
     for i in range(delta_rouge.size(0)):
       out_p = torch.masked_select(out_matix[i], delta_mask_p[i])
@@ -127,8 +128,7 @@ class RougeLoss(nn.Module):
 
   def forward(self, out_matix, delta_rouge):
     # return self.kl_div(out_matix,delta_rouge)
-    # return self.focal(out_matix,delta_rouge)
-    # return self.margin_ranking(out_matix, delta_rouge)
+    return self.focal(out_matix, delta_rouge)
+    # return self.margin_ranking(out_matix, delta_rouge)  # 容易变成刀状
     # return self.handcrafted_loss(out_matix, delta_rouge)
-    # return self.mse_loss(out_matix, delta_rouge) * 2 + self.margin_ranking(out_matix, delta_rouge)
-    return self.mse_loss(out_matix, delta_rouge)
+    # return self.mse_loss(out_matix, delta_rouge)

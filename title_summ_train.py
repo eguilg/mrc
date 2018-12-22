@@ -63,10 +63,10 @@ cur_cfg = bidaf3
 
 SEED = 502
 EPOCH = 150
-BATCH_SIZE = 127
+BATCH_SIZE = 128
 
-show_plt = False
-on_windows = False
+show_plt = True
+on_windows = True
 
 from config.config import MODE_OBJ, MODE_MRT, MODE_PTR
 
@@ -119,8 +119,8 @@ if __name__ == '__main__':
   }
 
   transform = TitleSummTransform(jieba_base_v, jieba_sgns_v, jieba_flag_v)
-  train_dataset = TitleSummDataset(train_file, transform, use_rouge=True, max_size=None)
-  dev_dataset = TitleSummDataset(val_file, transform, use_rouge=True, max_size=None)
+  train_dataset = TitleSummDataset(val_file, transform, use_rouge=True, max_size=2048)
+  dev_dataset = TitleSummDataset(val_file, transform, use_rouge=True, max_size=2048)
 
   num_workers = 0
   # if on_windows:
@@ -132,7 +132,6 @@ if __name__ == '__main__':
   train_loader = DataLoader(
     dataset=train_dataset,
     batch_size=BATCH_SIZE,
-    # batch_sampler=MethodBasedBatchSampler(data_for_train, batch_size=BATCH_SIZE, seed=SEED),
     num_workers=num_workers,
     collate_fn=transform.batchify,
     shuffle=True
@@ -141,7 +140,6 @@ if __name__ == '__main__':
   dev_loader = DataLoader(
     dataset=dev_dataset,
     batch_size=BATCH_SIZE,
-    # batch_sampler=MethodBasedBatchSampler(data_for_dev, batch_size=BATCH_SIZE, shuffle=False),
     num_workers=num_workers,
     collate_fn=transform.batchify
   )
@@ -202,7 +200,7 @@ if __name__ == '__main__':
   print_every = 200
   last_val_step = global_step
   if on_windows:
-    val_every = [1, 70, 50, 35]
+    val_every = [50, 70, 50, 35]
   else:
     val_every = [1000, 700, 500, 350]
   drop_lr_frq = 1
@@ -355,7 +353,7 @@ if __name__ == '__main__':
 
               if show_plt and val_step % 1000 == 0:
                 out = out.detach().cpu()
-                for o, sample in zip(out[:10], val_batch['raw'][:10]):
+                for o, sample in zip(out[:10], val_batch['raw'][:10]):  # FIXME: 只输出10个
                   dim = o.size(0)
                   rouge_matrix = np.zeros([dim, dim])
                   starts = sample['delta_token_starts']

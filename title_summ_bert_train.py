@@ -224,8 +224,8 @@ if __name__ == '__main__':
 
   tokenizer = TitleSummBertTokenizer('title_data/vocab/bert-base-multilingual-cased.vocab')
   transform = TitleSummBertTransform(tokenizer=tokenizer, max_len=64)
-  train_dataset = TitleSummBertDataset(train_file, transform, max_size=None)  # FIXME: 临时在val上做过拟合测试
-  val_dataset = TitleSummBertDataset(val_file, transform, max_size=None)
+  train_dataset = TitleSummBertDataset(val_file, transform, max_size=1024)  # FIXME: 临时在val上做过拟合测试
+  val_dataset = TitleSummBertDataset(val_file, transform, max_size=1024)
   train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, collate_fn=transform.batchify, shuffle=True)
   val_dataloader = DataLoader(val_dataset, batch_size=BATCH_SIZE, collate_fn=transform.batchify, shuffle=False)
 
@@ -267,8 +267,8 @@ if __name__ == '__main__':
     print_every = 50
     val_every = [50, 70, 50, 35]
   else:
-    print_every = 1000
-    val_every = [5000, 700, 500, 350]
+    print_every = 200
+    val_every = [200, 700, 500, 350]
   drop_lr_frq = 2
   device = torch.device("cuda")
 
