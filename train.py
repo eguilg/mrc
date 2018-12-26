@@ -190,6 +190,7 @@ if __name__ == '__main__':
   )
 
   model_params = cur_cfg.model_params
+  model_params['c_max_len'] = 500
 
   model = RCModel(model_params, embed_lists, mode=mode)
   model = model.cuda()

@@ -20,7 +20,8 @@ class RCModel(nn.Module):
     self.dropout = param_dict['dropout']
     self.backbone_kwarg = param_dict['backbone_kwarg']
     self.ptr_kwarg = param_dict['ptr_kwarg']
-    self.c_max_len = param_dict['c_max_len']
+    if 'c_max_len' in param_dict:
+      self.c_max_len = param_dict['c_max_len']
     self.mode = mode
 
     self.is_squad = is_squad

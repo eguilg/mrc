@@ -30,15 +30,18 @@ from pytorch_pretrained_bert import BertModel
 from models.title_models import BertForTitleSumm
 from pytorch_pretrained_bert.optimization import BertAdam
 from torch.utils.data import DataLoader
+from torch.autograd import Variable
 
-for i in range(2, 5 + 1):
-  model_path = 'title_data/models/MODE_MRT.bert.state%d' % i
-  model = torch.load(model_path)
+row_embeds = nn.Embedding(64, 2)
+col_embeds = nn.Embedding(64, 2)
 
-  state = {}
-  state['best_model_state'] = model.state_dict()
-  state['best_epoch'] = 1
-  state['best_step'] = 1
-  state['best_loss'] = 1
+hello_idx = torch.LongTensor(list(range(10)))
+hello_idx = Variable(hello_idx)
+row = row_embeds(hello_idx)
+col = col_embeds(hello_idx).transpose(0, 1)
 
-  torch.save(state, 'title_data/models/MODE_MRT.bert.state%d.tmp' % i)
+outer3 = torch.mm(row, col).unsqueeze(0)
+outer3 = torch.cat([outer3 for _ in range(8)], 0)
+print(outer3.shape)
+outer3 = outer3.unsqueeze(1)
+print(outer3.shape)

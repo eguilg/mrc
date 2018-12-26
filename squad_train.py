@@ -60,12 +60,12 @@ cur_cfg = bidaf3
 # cur_cfg = slqa_plus2
 # cur_cfg = slqa_plus3
 
-show_plt = True
-on_windows = True
+show_plt = False
+on_windows = False
 
 SEED = 502
 EPOCH = 150
-BATCH_SIZE = 63
+BATCH_SIZE = 31
 if on_windows:
   BATCH_SIZE = 8
 
@@ -189,7 +189,7 @@ if __name__ == '__main__':
   if on_windows:
     val_every = [1, 70, 50, 35]
   else:
-    val_every = [500, 700, 500, 350]
+    val_every = [1000, 700, 500, 350]
   drop_lr_frq = 1
   # val_every_min = 350
   # val_every = 1000
